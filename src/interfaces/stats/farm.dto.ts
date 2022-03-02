@@ -1,4 +1,4 @@
-export class FarmStats {
+export class FarmStatsDto {
   readonly address: string;
   readonly name: string;
   readonly poolIndex: number;

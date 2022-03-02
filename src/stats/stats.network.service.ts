@@ -12,7 +12,15 @@ import { GeneralStatsNetworkDto } from 'src/interfaces/stats/generalStats.dto';
 import { Cache } from 'cache-manager';
 import { PriceService } from './price.service';
 import { multicallNetwork } from 'src/utils/lib/multicall';
-import { getPoolPrices, getDualFarmApr, arrayChunk } from './utils/stats.utils';
+import {
+  getPoolPrices,
+  getDualFarmApr,
+  arrayChunk,
+  getTokensPrices,
+  calculateMiscAmounts,
+  getAllocInfo,
+  getRewarderInfo,
+} from './utils/stats.utils';
 import { Model } from 'mongoose';
 import { getBalanceNumber } from 'src/utils/math';
 import { MINI_COMPLEX_REWARDER_ABI } from './utils/abi/miniComplexRewarderAbi';
@@ -25,6 +33,7 @@ import { createLpPairName } from 'src/utils/helpers';
 import { ChainConfigService } from 'src/config/chain.configuration.service';
 import { getContractNetwork } from 'src/utils/lib/web3';
 import { BitqueryService } from 'src/bitquery/bitquery.service';
+import { FarmStatsDto } from 'src/interfaces/stats/farm.dto';
 
 @Injectable()
 export class StatsNetworkService {
@@ -132,23 +141,7 @@ export class StatsNetworkService {
         farms: [],
         incentivizedPools: [],
       };
-      // const a: string[] = [
-      //   "0x034293F21F1cCE5908BC605CE5850dF2b1059aC0",
-      //   "0x6Cf8654e85AB489cA7e70189046D507ebA233613",
-      //   "0xd32f3139A214034A0f9777c87eE0a064c1FF6AE2",
-      //   "0x65D43B64E3B31965Cd5EA367D4c2b94c03084797",
-      //   "0xe82635a105c520fd58e597181cBf754961d51E3e",
-      //   "0x5b13B583D4317aB15186Ed660A1E4C65C10da659",
-      //   "0x0359001070cF696D5993E0697335157a6f7dB289",
-      //   "0xB8e54c9Ea1616beEBe11505a419DD8dF1000E02a",
-      //   "0xf67DE5Cf1fB01DC4df842a846Df2a7Ec07c41b93",
-      //   "0xb01bAf15079eE93590A862Df37234e8f7C9825bF",
-      //   "0xcBf71C04148e5C463223F07A64a50f2Df46B6cdc",
-      //   "0x2735d319739edc6c47c3a20aa5402b931c3f1a1e",
-      //   "0x0806a407d6eea72788d91c36829a19d424446040"
-      // ];
-      // const { volumes } = await this.bitqueryService.getDailyLPVolume('matic', a)
-      // return generalStats;
+
       switch (chainId) {
         case this.configService.getData<number>('networksId.BSC'):
           const poolInfos = await this.statsService.calculatePoolInfo(
@@ -246,192 +239,45 @@ export class StatsNetworkService {
     const miniChefAddress = this.configService.getData<string>(
       `${chainId}.contracts.masterApe`,
     );
-    const data: any[] = await Promise.all(
+    const data: FarmStatsDto[] = await Promise.all(
       response.map(async (dualFarmConfig) => {
-        const lpAdress = dualFarmConfig.stakeTokenAddress;
-        const quoteToken =
-          tokenPrices[dualFarmConfig.stakeTokens.token0.address.toLowerCase()];
-        const token1 =
-          tokenPrices[dualFarmConfig.stakeTokens.token1.address.toLowerCase()];
-        const miniChefRewarderToken =
-          tokenPrices[dualFarmConfig.rewardTokens.token0.address.toLowerCase()];
-        const rewarderToken =
-          tokenPrices[dualFarmConfig.rewardTokens.token1.address.toLowerCase()];
-
-        const calls = [
-          // Balance of token in the LP contract
-          {
-            address: dualFarmConfig.stakeTokens.token0.address,
-            name: 'balanceOf',
-            params: [lpAdress],
-          },
-          // Balance of quote token on LP contract
-          {
-            address: dualFarmConfig.stakeTokens.token1.address,
-            name: 'balanceOf',
-            params: [lpAdress],
-          },
-          // Balance of LP tokens in the master chef contract
-          {
-            address: lpAdress,
-            name: 'balanceOf',
-            params: [miniChefAddress],
-          },
-          // Total supply of LP tokens
-          {
-            address: lpAdress,
-            name: 'totalSupply',
-          },
-        ];
+        const {
+          quoteToken,
+          token1,
+          miniChefRewarderToken,
+          rewarderToken,
+        } = getTokensPrices(dualFarmConfig, tokenPrices);
 
         const [
-          quoteTokenBlanceLP,
-          tokenBalanceLP,
-          lpTokenBalanceMC,
-          lpTotalSupply,
-        ] = await multicallNetwork(
-          this.configService.getData<any>(`${chainId}.abi.erc20`),
-          calls,
-          chainId,
-        );
-
-        // Ratio in % a LP tokens that are in staking, vs the total number in circulation
-        const lpTokenRatio = new BigNumber(lpTokenBalanceMC).div(
-          new BigNumber(lpTotalSupply),
-        );
-
-        // Total value in staking in quote token value
-        const lpTotalInQuoteToken = new BigNumber(quoteTokenBlanceLP)
-          .div(new BigNumber(10).pow(quoteToken?.decimals))
-          .times(new BigNumber(2))
-          .times(lpTokenRatio);
-
-        // Total value in pool in quote token value
-        const totalInQuoteToken = new BigNumber(quoteTokenBlanceLP)
-          .div(new BigNumber(10).pow(quoteToken?.decimals))
-          .times(new BigNumber(2));
-
-        // Amount of token in the LP that are considered staking (i.e amount of token * lp ratio)
-        const tokenAmount = new BigNumber(tokenBalanceLP)
-          .div(new BigNumber(10).pow(token1?.decimals))
-          .times(lpTokenRatio);
-        const quoteTokenAmount = new BigNumber(quoteTokenBlanceLP)
-          .div(new BigNumber(10).pow(quoteToken?.decimals))
-          .times(lpTokenRatio);
-
-        let alloc = null;
-        let multiplier = 'unset';
-        let miniChefPoolRewardPerSecond = null;
-        try {
-          const [
-            info,
-            totalAllocPoint,
-            miniChefRewardsPerSecond,
-          ] = await multicallNetwork(
+          {
+            totalStaked,
+            tokenAmount,
+            quoteTokenAmount,
+            stakeTokenPrice,
+            totalInQuoteToken,
+            lpTotalInQuoteToken,
+          },
+          { alloc, multiplier, miniChefPoolRewardPerSecond },
+          { rewarderPoolRewardPerSecond },
+        ] = await Promise.all([
+          calculateMiscAmounts(
+            this.configService.getData<any>(`${chainId}.abi.erc20`),
+            dualFarmConfig,
+            miniChefAddress,
+            quoteToken,
+            token1,
+            chainId,
+          ),
+          getAllocInfo(
             this.configService.getData<any>(`${chainId}.abi.masterApe`),
-            [
-              {
-                address: miniChefAddress,
-                name: 'poolInfo',
-                params: [dualFarmConfig.pid],
-              },
-              {
-                address: miniChefAddress,
-                name: 'totalAllocPoint',
-              },
-              {
-                address: miniChefAddress,
-                name: 'bananaPerSecond',
-              },
-            ],
+            miniChefAddress,
+            dualFarmConfig,
+            miniChefRewarderToken,
             chainId,
-          );
-          const allocPoint = new BigNumber(info.allocPoint._hex);
-          const poolWeight = allocPoint.div(new BigNumber(totalAllocPoint));
-          miniChefPoolRewardPerSecond = getBalanceNumber(
-            poolWeight.times(miniChefRewardsPerSecond),
-            miniChefRewarderToken?.decimals,
-          );
-          alloc = poolWeight.toJSON();
-          multiplier = `${allocPoint.div(100).toString()}X`;
-          // eslint-disable-next-line no-empty
-        } catch (error) {
-          console.warn('Error fetching farm', error, dualFarmConfig);
-        }
+          ),
+          getRewarderInfo(dualFarmConfig, rewarderToken, chainId),
+        ]);
 
-        let rewarderTotalAlloc = null;
-        let rewarderInfo = null;
-        let rewardsPerSecond = null;
-
-        if (
-          dualFarmConfig.rewarderAddress.toLowerCase() ===
-          '0x1F234B1b83e21Cb5e2b99b4E498fe70Ef2d6e3bf'.toLowerCase()
-        ) {
-          // Temporary until we integrate the subgraph to the frontend
-          rewarderTotalAlloc = 10000;
-          const multiReturn = await multicallNetwork(
-            MINI_COMPLEX_REWARDER_ABI,
-            [
-              {
-                address: dualFarmConfig.rewarderAddress,
-                name: 'poolInfo',
-                params: [dualFarmConfig.pid],
-              },
-              {
-                address: dualFarmConfig.rewarderAddress,
-                name: 'rewardPerSecond',
-              },
-            ],
-            chainId,
-          );
-          rewarderInfo = multiReturn[0];
-          rewardsPerSecond = multiReturn[1];
-        } else {
-          const multiReturn = await multicallNetwork(
-            MINI_COMPLEX_REWARDER_ABI,
-            [
-              {
-                address: dualFarmConfig.rewarderAddress,
-                name: 'poolInfo',
-                params: [dualFarmConfig.pid],
-              },
-              {
-                address: dualFarmConfig.rewarderAddress,
-                name: 'rewardPerSecond',
-              },
-              {
-                address: dualFarmConfig.rewarderAddress,
-                name: 'totalAllocPoint',
-              },
-            ],
-            chainId,
-          );
-          rewarderInfo = multiReturn[0];
-          rewardsPerSecond = multiReturn[1];
-          rewarderTotalAlloc = multiReturn[2];
-        }
-
-        const totalStaked = quoteTokenAmount
-          .times(new BigNumber(2))
-          .times(quoteToken?.usd);
-        const totalValueInLp = new BigNumber(quoteTokenBlanceLP)
-          .div(new BigNumber(10).pow(quoteToken?.decimals))
-          .times(new BigNumber(2))
-          .times(quoteToken?.usd);
-        const stakeTokenPrice = totalValueInLp
-          .div(new BigNumber(getBalanceNumber(lpTotalSupply)))
-          .toNumber();
-
-        const rewarderAllocPoint = new BigNumber(
-          rewarderInfo?.allocPoint?._hex,
-        );
-        const rewarderPoolWeight = rewarderAllocPoint.div(
-          new BigNumber(rewarderTotalAlloc),
-        );
-        const rewarderPoolRewardPerSecond = getBalanceNumber(
-          rewarderPoolWeight.times(rewardsPerSecond),
-          rewarderToken?.decimals,
-        );
         const apr = getDualFarmApr(
           totalStaked?.toNumber(),
           miniChefRewarderToken?.usd,

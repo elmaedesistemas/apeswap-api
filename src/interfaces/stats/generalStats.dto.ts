@@ -1,7 +1,7 @@
 import { ApiHideProperty } from '@nestjs/swagger';
 import { Validate } from 'class-validator';
 import { OnlyNetwork } from 'src/utils/validator/onlyNetwork';
-import { FarmStats } from './farm.dto';
+import { FarmStatsDto } from './farm.dto';
 import { IncentivizedPoolStats } from './incentivizedPool.dto';
 import { PoolStats } from './pool.dto';
 
@@ -19,7 +19,7 @@ export class GeneralStats {
   totalLiquidity: number;
   totalVolume: number;
   pools: PoolStats[];
-  farms: FarmStats[];
+  farms: FarmStatsDto[];
   incentivizedPools: IncentivizedPoolStats[];
 }
 
@@ -35,7 +35,7 @@ export class GeneralStatsNetworkDto {
 
   @ApiHideProperty()
   pools?: PoolStats[];
-  farms?: FarmStats[];
+  farms?: FarmStatsDto[];
   incentivizedPools: IncentivizedPoolStats[];
 }
 
