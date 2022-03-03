@@ -607,3 +607,27 @@ export async function getAllocInfo(
     miniChefPoolRewardPerSecond,
   };
 }
+
+export const getLiquidityFarm = (balance, farm) => {
+  const balances = balance.find(
+    (b) => b.address.toLowerCase() === farm.address.toLowerCase(),
+  );
+  let liquidity;
+  let tokenBalance = balances.balances.find(
+    (b) => b.currency?.address.toLowerCase() === farm.t0Address.toLowerCase(),
+  );
+  if (tokenBalance) {
+    return tokenBalance.value * 2 * farm?.p0;
+  }
+  if (!liquidity) {
+    tokenBalance = balances.balances.find(
+      (b) => b.currency.address.toLowerCase() === farm.t1Address.toLowerCase(),
+    );
+    if (tokenBalance) {
+      return tokenBalance.value * 2 * farm?.p1;
+    }
+  }
+  if (!liquidity) liquidity = 0;
+
+  return liquidity;
+};

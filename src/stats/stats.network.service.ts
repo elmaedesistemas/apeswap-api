@@ -6,12 +6,10 @@ import {
   Logger,
   BadRequestException,
 } from '@nestjs/common';
-import BigNumber from 'bignumber.js';
 import { InjectModel } from '@nestjs/mongoose';
 import { GeneralStatsNetworkDto } from 'src/interfaces/stats/generalStats.dto';
 import { Cache } from 'cache-manager';
 import { PriceService } from './price.service';
-import { multicallNetwork } from 'src/utils/lib/multicall';
 import {
   getPoolPrices,
   getDualFarmApr,
@@ -20,10 +18,9 @@ import {
   calculateMiscAmounts,
   getAllocInfo,
   getRewarderInfo,
+  getLiquidityFarm,
 } from './utils/stats.utils';
 import { Model } from 'mongoose';
-import { getBalanceNumber } from 'src/utils/math';
-import { MINI_COMPLEX_REWARDER_ABI } from './utils/abi/miniComplexRewarderAbi';
 import {
   GeneralStatsNetwork,
   GeneralStatsNetworkDocument,
@@ -189,6 +186,7 @@ export class StatsNetworkService {
                 'bsc',
                 generalStats,
                 this.configService.getData<number>(`${chainId}.feeLP`),
+                chainId,
               ),
             ]);
           } catch (error) {}
@@ -208,6 +206,7 @@ export class StatsNetworkService {
             'matic',
             generalStats,
             this.configService.getData<number>(`${chainId}.feeLP`),
+            chainId,
           );
           delete generalStats.pools;
           delete generalStats.incentivizedPools;
@@ -326,21 +325,19 @@ export class StatsNetworkService {
     network: string,
     pools: GeneralStatsNetworkDto,
     fee: number,
+    chainId: number,
   ) {
     const addresses = pools.farms.map((f) => f.address);
-    const baseCurrency1 = pools.farms.map((f) => f.t0Address);
-    const baseCurrency2 = pools.farms.map((f) => f.t1Address);
-    const listBaseCurrency = [...baseCurrency1, ...baseCurrency2]
-    const reduceBaseCurrency = listBaseCurrency.filter((item,index)=>{
-      return listBaseCurrency.indexOf(item) === index;
-    });
+    const baseCurrency = this.configService.getData<string[]>(
+      `${chainId}.baseCurrency`,
+    );
     const listAddresses = arrayChunk(addresses);
     for (let index = 0; index < listAddresses.length; index++) {
       const list = listAddresses[index];
       const { volumes, balance } = await this.bitqueryService.getDailyLPVolume(
         network,
         list,
-        reduceBaseCurrency
+        baseCurrency,
       );
       pools.farms.forEach((f) => {
         const volume = volumes.find(
@@ -348,31 +345,14 @@ export class StatsNetworkService {
             v.smartContract.address.address.toLowerCase() ===
             f.address.toLowerCase(),
         );
-        const balances = balance.find(
-          (b) =>
-            b.address.toLowerCase() ===
-            f.address.toLowerCase(),
-        );
-        let liquidity;
-        let tokenBalance = balances.balances.find(b=>{
-          console.log(b)
-          b.currency?.address.toLowerCase() === f.t0Address.toLowerCase()
-        })
-        if(tokenBalance) {
-          liquidity = tokenBalance.value * 2 * f?.p0;
-        }
-        if(!liquidity) tokenBalance = balances.balances.find(b=>b.currency.address.toLowerCase() === f.t1Address.toLowerCase())
-        if(tokenBalance) {
-          liquidity = tokenBalance.value * 2 * f?.p1;
-        }
-        if(!liquidity) liquidity = 0;
+        const liquidity = getLiquidityFarm(balance, f);
         if (volume) {
           const aprLpReward =
             (((volume.tradeAmount * fee) / 100) * 365) / +liquidity;
           f.lpRewards = {
             volume: volume.tradeAmount,
             apr: aprLpReward,
-            liquidity: liquidity.toFixed(0)
+            liquidity: liquidity.toFixed(0),
           };
         }
       });

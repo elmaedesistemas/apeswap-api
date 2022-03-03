@@ -272,7 +272,11 @@ export class BitqueryService {
     return { circulatingSupply, reserve, supply };
   }
 
-  async getDailyLPVolume(network: string, address: string[], baseCurrency: string[]) {
+  async getDailyLPVolume(
+    network: string,
+    address: string[],
+    baseCurrency: string[],
+  ) {
     const today = new Date();
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
@@ -286,7 +290,7 @@ export class BitqueryService {
     );
     return {
       volumes: dexTrades,
-      balance: listBaseCurrency
+      balance: listBaseCurrency,
     };
   }
   // bitquery
