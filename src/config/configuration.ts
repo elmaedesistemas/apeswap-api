@@ -105,10 +105,10 @@ export default () => ({
     appNodes: [
       'https://polygon-rpc.com',
       //'https://rpc-mainnet.matic.network',
-      //'https://matic-mainnet.chainstacklabs.com',
-      //'https://rpc-mainnet.maticvigil.com',
-      //'https://rpc-mainnet.matic.quiknode.pro',
-      //'https://matic-mainnet-full-rpc.bwarelabs.com',
+      // 'https://matic-mainnet.chainstacklabs.com',
+      // 'https://rpc-mainnet.maticvigil.com',
+      'https://rpc-mainnet.matic.quiknode.pro',
+      'https://matic-mainnet-full-rpc.bwarelabs.com',
     ],
     abi: {
       masterApe: MASTER_APE_ABI_POLYGON,

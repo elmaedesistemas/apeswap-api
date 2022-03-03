@@ -332,6 +332,8 @@ export class StatsNetworkService {
       `${chainId}.baseCurrency`,
     );
     const listAddresses = arrayChunk(addresses);
+    let volumesList = [];
+    let balanceList = [];
     for (let index = 0; index < listAddresses.length; index++) {
       const list = listAddresses[index];
       const { volumes, balance } = await this.bitqueryService.getDailyLPVolume(
@@ -339,23 +341,28 @@ export class StatsNetworkService {
         list,
         baseCurrency,
       );
-      pools.farms.forEach((f) => {
-        const volume = volumes.find(
+      volumesList = [...volumesList, ...volumes];
+      balanceList = [...balanceList, ...balance];
+    }
+    pools.farms.forEach((f) => {
+      let aprLpReward = 0;
+      let tradeAmount = 0;
+      let liquidity = 0;
+      try {
+        const volume = volumesList.find(
           (v) =>
             v.smartContract.address.address.toLowerCase() ===
             f.address.toLowerCase(),
         );
-        const liquidity = getLiquidityFarm(balance, f);
-        if (volume) {
-          const aprLpReward =
-            (((volume.tradeAmount * fee) / 100) * 365) / +liquidity;
-          f.lpRewards = {
-            volume: volume.tradeAmount,
-            apr: aprLpReward,
-            liquidity: liquidity.toFixed(0),
-          };
-        }
-      });
-    }
+        liquidity = getLiquidityFarm(balanceList, f);
+        tradeAmount = volume?.tradeAmount ?? 0;
+        aprLpReward = (((tradeAmount * fee) / 100) * 365) / +liquidity;
+      } catch (error) {}
+      f.lpRewards = {
+        volume: tradeAmount,
+        apr: aprLpReward,
+        liquidity: liquidity.toFixed(0),
+      };
+    });
   }
 }
