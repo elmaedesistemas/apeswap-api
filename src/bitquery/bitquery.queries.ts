@@ -220,8 +220,18 @@ export function queryLPVolume(
   toDate: string,
 ) {
   return `
- query($address: [String!]){
+ query($address: [String!], $baseCurrency: [String!]){
   ethereum(network: ${network}) {
+    address(address: {in: $address}) {
+      balances(currency: {in: $baseCurrency}) {
+        currency {
+          symbol
+          address
+        }
+        value
+      }
+      address
+    }
     dexTrades(
       options: {desc: "count"}
       smartContractAddress: {in: $address}

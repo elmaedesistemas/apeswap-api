@@ -328,12 +328,19 @@ export class StatsNetworkService {
     fee: number,
   ) {
     const addresses = pools.farms.map((f) => f.address);
+    const baseCurrency1 = pools.farms.map((f) => f.t0Address);
+    const baseCurrency2 = pools.farms.map((f) => f.t1Address);
+    const listBaseCurrency = [...baseCurrency1, ...baseCurrency2]
+    const reduceBaseCurrency = listBaseCurrency.filter((item,index)=>{
+      return listBaseCurrency.indexOf(item) === index;
+    });
     const listAddresses = arrayChunk(addresses);
     for (let index = 0; index < listAddresses.length; index++) {
       const list = listAddresses[index];
-      const { volumes } = await this.bitqueryService.getDailyLPVolume(
+      const { volumes, balance } = await this.bitqueryService.getDailyLPVolume(
         network,
         list,
+        reduceBaseCurrency
       );
       pools.farms.forEach((f) => {
         const volume = volumes.find(
@@ -341,12 +348,31 @@ export class StatsNetworkService {
             v.smartContract.address.address.toLowerCase() ===
             f.address.toLowerCase(),
         );
+        const balances = balance.find(
+          (b) =>
+            b.address.toLowerCase() ===
+            f.address.toLowerCase(),
+        );
+        let liquidity;
+        let tokenBalance = balances.balances.find(b=>{
+          console.log(b)
+          b.currency?.address.toLowerCase() === f.t0Address.toLowerCase()
+        })
+        if(tokenBalance) {
+          liquidity = tokenBalance.value * 2 * f?.p0;
+        }
+        if(!liquidity) tokenBalance = balances.balances.find(b=>b.currency.address.toLowerCase() === f.t1Address.toLowerCase())
+        if(tokenBalance) {
+          liquidity = tokenBalance.value * 2 * f?.p1;
+        }
+        if(!liquidity) liquidity = 0;
         if (volume) {
           const aprLpReward =
-            (((volume.tradeAmount * fee) / 100) * 365) / +f.tvl;
+            (((volume.tradeAmount * fee) / 100) * 365) / +liquidity;
           f.lpRewards = {
             volume: volume.tradeAmount,
             apr: aprLpReward,
+            liquidity: liquidity.toFixed(0)
           };
         }
       });

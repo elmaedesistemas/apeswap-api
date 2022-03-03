@@ -272,20 +272,21 @@ export class BitqueryService {
     return { circulatingSupply, reserve, supply };
   }
 
-  async getDailyLPVolume(network: string, address: string[]) {
+  async getDailyLPVolume(network: string, address: string[], baseCurrency: string[]) {
     const today = new Date();
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const {
       data: {
-        ethereum: { dexTrades },
+        ethereum: { dexTrades, address: listBaseCurrency },
       },
     } = await this.queryBitquery(
       queryLPVolume(network, yesterday.toISOString(), today.toISOString()),
-      { address },
+      { address, baseCurrency },
     );
     return {
       volumes: dexTrades,
+      balance: listBaseCurrency
     };
   }
   // bitquery
