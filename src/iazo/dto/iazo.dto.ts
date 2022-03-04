@@ -56,7 +56,6 @@ export class IazoDto {
   @IsNotEmpty()
   website: string;
 
-  @IsNotEmpty()
   whitepaper: string;
 
   @IsNotEmpty()
