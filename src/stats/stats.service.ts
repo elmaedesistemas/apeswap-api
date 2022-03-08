@@ -17,7 +17,7 @@ import {
   getParameterCaseInsensitive,
   createLpPairName,
 } from 'src/utils/helpers';
-import { multicall } from 'src/utils/lib/multicall';
+import { multicall, multicallNetwork } from 'src/utils/lib/multicall';
 import {
   gBananaTreasury,
   masterApeContractWeb,
@@ -605,7 +605,7 @@ export class StatsService {
     const bananaAddress = this.configService.getData<string>(
       `${chainId}.contracts.banana`,
     );
-    const [decimals, burned, supply] = await multicall(
+    const [decimals, burned, supply] = await multicallNetwork(
       this.configService.getData<any>(`${chainId}.abi.erc20`),
       [
         {
@@ -624,6 +624,7 @@ export class StatsService {
           name: 'totalSupply',
         },
       ],
+      chainId
     );
     const burntAmount = burned / 10 ** decimals;
     const totalSupply = supply / 10 ** decimals;
