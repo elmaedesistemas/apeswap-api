@@ -1,7 +1,22 @@
+import { ERC20_ABI } from 'src/stats/utils/abi/erc20Abi';
+import { ERC20_ABI_POLYGON } from 'src/stats/utils/abi/erc20AbiPolygon';
+import { LP_ABI } from 'src/stats/utils/abi/lpAbi';
+import { LP_ABI_POLYGON } from 'src/stats/utils/abi/lpAbiPolygon';
+import { MASTER_APE_ABI } from 'src/stats/utils/abi/masterApeAbi';
+import { MASTER_APE_ABI_POLYGON } from 'src/stats/utils/abi/masterApeAbiPolygon';
+import { MULTICALL_ABI } from 'src/utils/lib/abi/multicallAbi';
+import { MULTICALL_ABI_POLYGON } from 'src/utils/lib/abi/multicallAbiPolygon';
+
 export default () => ({
   mongo_uri: process.env.MONGO_URL,
   environment: process.env.NODE_ENV,
   chainId: process.env.CHAIN_ID || 97,
+  networksId: {
+    BSC: 56,
+    POLYGON: 137,
+  },
+  tokenListUrl: process.env.TOKEN_LIST_URL,
+  dualFarmsListUrl: process.env.DUAL_FARMS_LIST_URL,
   97: {
     lottery: {
       address: '0xe42Ff4758C37ccC3A54004b176384477bbBe70D6',
@@ -26,6 +41,7 @@ export default () => ({
       'https://data-seed-prebsc-2-s2.binance.org:8545',
     ],
     iazoExposer: '0xe977E40f29f699F75db2A137Af0B3Db2152404b6',
+    apePriceGetter: '',
   },
   56: {
     lottery: {
@@ -45,14 +61,15 @@ export default () => ({
       gBananaTreasury: '0xec4b9d1fd8a3534e31fce1636c7479bcd29213ae',
       auction: '0xaeCB396Be7F19618Db4C44d8e2E8C908228515E9',
     },
+    apePriceGetter: '0x5e545322b83626c745FE46144a15C00C94cBD803',
     appNodes: [
       'https://bsc-dataseed.binance.org:443',
       'https://bsc-dataseed1.defibit.io:443',
       'https://bsc-dataseed1.ninicoin.io:443',
-      /* 'https://bsc-dataseed2.ninicoin.io:443',
+      'https://bsc-dataseed2.ninicoin.io:443',
       'https://bsc-dataseed3.ninicoin.io:443',
       'https://bsc-dataseed4.ninicoin.io:443',
-      'https://bsc-dataseed2.defibit.io:443',
+      /* 'https://bsc-dataseed2.defibit.io:443',
       'https://bsc-dataseed3.defibit.io:443',
       'https://bsc-dataseed4.defibit.io:443',
       'https://bsc-dataseed1.binance.org:443',
@@ -63,5 +80,46 @@ export default () => ({
     iazoExposer: '0xFdfb230bFa399EC32EA8e98c2E7E3CcD953C860A',
     lending: '0xCc7aaC69015a7645dfC39ddEB5902ca9FC0Bc15C',
     unitroller: '0xAD48B2C9DC6709a560018c678e918253a65df86e',
+    abi: {
+      masterApe: MASTER_APE_ABI,
+      multiCall: MULTICALL_ABI,
+      lp: LP_ABI,
+      erc20: ERC20_ABI,
+    },
+    feeLP: 0.15,
+    baseCurrency: [
+      '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
+      '0x2170ed0880ac9a755fd29b2688956bd959f933f8',
+      '0xe9e7cea3dedca5984780bafc599bd69add087d56',
+      '0x603c7f932ed1fc6575303d8fb018fdcbb0f39a95',
+    ],
+  },
+  137: {
+    contracts: {
+      masterApe: '0x54aff400858Dcac39797a81894D9920f16972D1D',
+      mulltiCall: '0x95028E5B8a734bb7E2071F96De89BABe75be9C8E',
+      banana: '0x5d47baba0d66083c52009271faf3f50dcc01023c',
+      burn: '0x000000000000000000000000000000000000dead',
+    },
+    apePriceGetter: '0x05D6C73D7de6E02B3f57677f849843c03320681c',
+    appNodes: [
+      'https://polygon-rpc.com',
+      //'https://rpc-mainnet.matic.network',
+      // 'https://matic-mainnet.chainstacklabs.com',
+      // 'https://rpc-mainnet.maticvigil.com',
+      // 'https://rpc-mainnet.matic.quiknode.pro',
+      // 'https://matic-mainnet-full-rpc.bwarelabs.com',
+    ],
+    abi: {
+      masterApe: MASTER_APE_ABI_POLYGON,
+      multiCall: MULTICALL_ABI_POLYGON,
+      lp: LP_ABI_POLYGON,
+      erc20: ERC20_ABI_POLYGON,
+    },
+    feeLP: 0.05,
+    baseCurrency: [
+      '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270',
+      '0x2791bca1f2de4661ed88a30c99a7a9449aa84174',
+    ],
   },
 });
