@@ -1,12 +1,19 @@
 import { Injectable, HttpService } from '@nestjs/common';
 import { chunk } from 'lodash';
+import { ChainConfigService } from 'src/config/chain.configuration.service';
 import { SubgraphService } from './subgraph.service';
+import { fetchPrices } from './utils/fetchPrices';
+import { goldenBananaAddress } from './utils/stats.utils';
 
 @Injectable()
 export class PriceService {
+  private readonly TOKEN_LIST_URL = this.configService.getData<string>(
+    'tokenListUrl',
+  );
   constructor(
     private httpService: HttpService,
     private subgraphService: SubgraphService,
+    private configService: ChainConfigService,
   ) {}
 
   async getTokenPrices(): Promise<any> {
@@ -22,6 +29,33 @@ export class PriceService {
       }
     }
 
+    return prices;
+  }
+
+  async getTokenPricesv2(chainId: number): Promise<any> {
+    const prices = {};
+    const {
+      data: { tokens },
+    } = await this.httpService.get(this.TOKEN_LIST_URL).toPromise();
+    const data = await fetchPrices(
+      tokens,
+      chainId,
+      this.configService.getData<string>(`${chainId}.apePriceGetter`),
+    );
+    for (let i = 0; i < data.length; i++) {
+      prices[data[i].address] = {
+        usd: data[i].price,
+        decimals: data[i].decimals,
+      };
+    }
+    if (chainId === this.configService.getData<number>('networksId.BSC')) {
+      prices[goldenBananaAddress()] = {
+        usd:
+          prices[
+            this.configService.getData<string>(`${chainId}.contracts.banana`)
+          ].usd / 0.72,
+      };
+    }
     return prices;
   }
 

@@ -5,19 +5,29 @@ import {
   Logger,
   Param,
   UseInterceptors,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { GeneralStats } from 'src/interfaces/stats/generalStats.dto';
+import {
+  ChainIdDto,
+  GeneralStats,
+  GeneralStatsNetworkDto,
+} from 'src/interfaces/stats/generalStats.dto';
 import { GeneralStatsChain } from 'src/interfaces/stats/generalStatsChain.dto';
 import { SentryInterceptor } from 'src/interceptor/sentry.interceptor';
 import { StatsService } from './stats.service';
+import { StatsNetworkService } from './stats.network.service';
 
 @ApiTags('stats')
 @Controller('stats')
 @UseInterceptors(CacheInterceptor, SentryInterceptor)
 export class StatsController {
   private readonly logger = new Logger(StatsController.name);
-  constructor(private statsService: StatsService) {}
+  constructor(
+    private statsService: StatsService,
+    private statsNetworkService: StatsNetworkService,
+  ) {}
 
   @ApiOkResponse({
     type: GeneralStats,
@@ -57,6 +67,17 @@ export class StatsController {
   async getFarmPrices(): Promise<any> {
     this.logger.debug('Called GET /stats/farmPrices');
     return await this.statsService.getFarmPrices();
+  }
+
+  @Get('network/:chainId')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async getStatsNetwork(
+    @Param() chainIdDto: ChainIdDto,
+  ): Promise<GeneralStatsNetworkDto> {
+    this.logger.debug(`Called GET /stats/network/${chainIdDto.chainId}`);
+    return await this.statsNetworkService.getCalculateStatsNetwork(
+      +chainIdDto.chainId,
+    );
   }
 
   @ApiExcludeEndpoint()

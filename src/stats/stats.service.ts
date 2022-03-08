@@ -17,7 +17,7 @@ import {
   getParameterCaseInsensitive,
   createLpPairName,
 } from 'src/utils/helpers';
-import { multicall } from 'src/utils/lib/multicall';
+import { multicall, multicallNetwork } from 'src/utils/lib/multicall';
 import {
   gBananaTreasury,
   masterApeContractWeb,
@@ -25,7 +25,6 @@ import {
   goldenBananaAddress,
   masterApeContractAddress,
   getBananaPriceWithPoolList,
-  burnAddress,
   getPoolPrices,
   getWalletStatsForPools,
   getWalletStatsForFarms,
@@ -45,6 +44,8 @@ import { Cron } from '@nestjs/schedule';
 import { BEP20_REWARD_APE_ABI } from './utils/abi/bep20RewardApeAbi';
 import { GeneralStatsChain } from 'src/interfaces/stats/generalStatsChain.dto';
 import { TvlStats, TvlStatsDocument } from './schema/tvlStats.schema';
+import { ChainConfigService } from 'src/config/chain.configuration.service';
+import { BitqueryService } from 'src/bitquery/bitquery.service';
 
 @Injectable()
 export class StatsService {
@@ -62,6 +63,8 @@ export class StatsService {
     private tvlStatsModel: Model<TvlStatsDocument>,
     private subgraphService: SubgraphService,
     private priceService: PriceService,
+    private configService: ChainConfigService,
+    private bitqueryService: BitqueryService,
   ) {}
 
   createTvlStats(stats) {
@@ -378,23 +381,11 @@ export class StatsService {
   async calculateStats() {
     const masterApeContract = masterApeContractWeb();
 
-    const poolCount = parseInt(
-      await masterApeContract.methods.poolLength().call(),
-      10,
-    );
+    const poolInfos = await this.calculatePoolInfo(masterApeContract);
 
-    const poolInfos = await Promise.all(
-      [...Array(poolCount).keys()].map(async (x) =>
-        this.getPoolInfo(masterApeContract, x),
-      ),
-    );
-
-    const [totalAllocPoints, prices, rewardsPerDay] = await Promise.all([
-      masterApeContract.methods.totalAllocPoint().call(),
+    const [{ totalAllocPoints, rewardsPerDay }, prices] = await Promise.all([
+      this.getAllocPointAndRewards(masterApeContract),
       this.priceService.getTokenPrices(),
-      (((await masterApeContract.methods.cakePerBlock().call()) / 1e18) *
-        86400) /
-        3,
     ]);
 
     // If Banana price not returned from Subgraph, calculating using pools
@@ -447,6 +438,7 @@ export class StatsService {
           poolInfos[i].allocPoints,
           totalAllocPoints,
           rewardsPerDay,
+          this.configService.getData<string>(`${56}.contracts.banana`),
         );
       }
     }
@@ -462,11 +454,35 @@ export class StatsService {
         poolPrices.poolsTvl += pool.stakedTvl;
       }
     });
-
+    this.logger.log(`finish calculate stats`);
     await this.cacheManager.set('calculateStats', poolPrices, { ttl: 120 });
     await this.createGeneralStats(poolPrices);
 
     return poolPrices;
+  }
+
+  async calculatePoolInfo(masterApeContract) {
+    const poolCount = parseInt(
+      await masterApeContract.methods.poolLength().call(),
+      10,
+    );
+
+    return await Promise.all(
+      [...Array(poolCount).keys()].map(async (x) =>
+        this.getPoolInfo(masterApeContract, x),
+      ),
+    );
+  }
+
+  async getAllocPointAndRewards(masterApeContract) {
+    const [totalAllocPoints, rewardsPerDay] = await Promise.all([
+      masterApeContract.methods.totalAllocPoint().call(),
+      (((await masterApeContract.methods.cakePerBlock().call()) / 1e18) *
+        86400) /
+        3,
+    ]);
+
+    return { totalAllocPoints, rewardsPerDay };
   }
 
   async getPoolInfo(masterApeContract, poolIndex) {
@@ -491,7 +507,14 @@ export class StatsService {
 
   async getLpInfo(tokenAddress, stakingAddress) {
     try {
-      const [reserves, decimals, token0, token1] = await multicall(LP_ABI, [
+      const [
+        reserves,
+        decimals,
+        token0,
+        token1,
+        supply,
+        balanceOf,
+      ] = await multicall(LP_ABI, [
         {
           address: tokenAddress,
           name: 'getReserves',
@@ -508,9 +531,6 @@ export class StatsService {
           address: tokenAddress,
           name: 'token1',
         },
-      ]);
-
-      let [totalSupply, staked] = await multicall(LP_ABI, [
         {
           address: tokenAddress,
           name: 'totalSupply',
@@ -522,8 +542,8 @@ export class StatsService {
         },
       ]);
 
-      totalSupply /= 10 ** decimals[0];
-      staked /= 10 ** decimals[0];
+      const totalSupply = supply / 10 ** decimals[0];
+      const staked = balanceOf / 10 ** decimals[0];
 
       const q0 = reserves._reserve0;
       const q1 = reserves._reserve1;
@@ -616,16 +636,31 @@ export class StatsService {
     };
   }
 
-  async getBurnAndSupply() {
-    const bananaContract = getContract(ERC20_ABI, bananaAddress());
-
-    const decimals = await bananaContract.methods.decimals().call();
-
-    const [burned, supply] = await Promise.all([
-      bananaContract.methods.balanceOf(burnAddress()).call(),
-      bananaContract.methods.totalSupply().call(),
-    ]);
-
+  async getBurnAndSupply(chainId = +process.env.CHAIN_ID) {
+    const bananaAddress = this.configService.getData<string>(
+      `${chainId}.contracts.banana`,
+    );
+    const [decimals, burned, supply] = await multicallNetwork(
+      this.configService.getData<any>(`${chainId}.abi.erc20`),
+      [
+        {
+          address: bananaAddress,
+          name: 'decimals',
+        },
+        {
+          address: bananaAddress,
+          name: 'balanceOf',
+          params: [
+            this.configService.getData<string>(`${chainId}.contracts.burn`),
+          ],
+        },
+        {
+          address: bananaAddress,
+          name: 'totalSupply',
+        },
+      ],
+      chainId
+    );
     const burntAmount = burned / 10 ** decimals;
     const totalSupply = supply / 10 ** decimals;
     const circulatingSupply = totalSupply - burntAmount;
@@ -675,6 +710,7 @@ export class StatsService {
 
     return tokens;
   }
+
   async mappingIncetivizedPools(poolPrices, prices) {
     const currentBlockNumber = await getCurrentBlock();
     const pools = await this.getIncentivizedPools();
@@ -992,7 +1028,6 @@ export class StatsService {
 
   async getIncentivizedPools() {
     const { data } = await this.httpService.get(this.POOL_LIST_URL).toPromise();
-    console.log(data);
     const pools = data
       .map((pool) => ({
         sousId: pool.sousId,

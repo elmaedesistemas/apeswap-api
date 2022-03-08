@@ -1,4 +1,4 @@
-export class FarmStats {
+export class FarmStatsDto {
   readonly address: string;
   readonly name: string;
   readonly poolIndex: number;
@@ -20,4 +20,5 @@ export class FarmStats {
   readonly stakedTvl: number;
   readonly apr: number;
   readonly decimals: number;
+  lpRewards?: any;
 }
