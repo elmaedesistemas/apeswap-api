@@ -5,8 +5,6 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
 import { Cache } from 'cache-manager';
 import {
   queryCandleData,
@@ -18,24 +16,14 @@ import {
   QUOTE_CURRENCY_BSC,
 } from './bitquery.queries';
 import { PairInformationDto } from './dto/pairInformation.dto';
-import {
-  PairBitquery,
-  PairBitqueryDocument,
-} from './schema/pairBitquery.schema';
 import { TokenInformationDto } from './dto/tokenInformation.dto';
-import {
-  TokenBitquery,
-  TokenBitqueryDocument,
-} from './schema/tokenBitquery.schema';
 import {
   calculatePrice,
   getQuoteCurrencies,
   getQuoteCurrency,
-  updateAllPair,
-  updatePair,
-  verifyModel,
 } from './utils/helper.bitquery';
 import { CandleOptionsDto } from './dto/candle.dto';
+import { ChainConfigService } from 'src/config/chain.configuration.service';
 
 @Injectable()
 export class BitqueryService {
@@ -47,13 +35,10 @@ export class BitqueryService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     @Inject(HttpService)
     private readonly httpService: HttpService,
-    @InjectModel(PairBitquery.name)
-    public pairBitqueryModel: Model<PairBitqueryDocument>,
-    @InjectModel(TokenBitquery.name)
-    public tokenBitqueryModel: Model<TokenBitqueryDocument>,
+    private configService: ChainConfigService,
   ) {
-    this.url = process.env.BITQUERY_URL;
-    this.apiKey = process.env.BITQUERY_APIKEY;
+    this.url = this.configService.getData<string>(`bitquery.url`);
+    this.apiKey = this.configService.getData<string>(`bitquery.apikey`);
   }
 
   async getPairInformation(address: string, network: string) {
@@ -62,19 +47,8 @@ export class BitqueryService {
       this.logger.log('Hit getPairInformation() cache');
       return cachedValue;
     }
-    const pairModel = await this.pairBitqueryModel.findOne({ address });
-    const verify = await verifyModel(pairModel);
-    if (verify) return pairModel;
-    if (!pairModel) {
-      this.logger.log('Hit new calculate pair information');
-      return await this.calculatePairInformation(address, network);
-    } else {
-      this.logger.log('Hit update calculate pair information');
-      await updatePair(this.pairBitqueryModel, { address });
-      this.calculatePairInformation(address, network);
-    }
-
-    return pairModel;
+    this.logger.log('Hit new calculate pair information');
+    return await this.calculatePairInformation(address, network);
   }
 
   async calculatePairInformation(addressLP: string, network: string) {
@@ -123,30 +97,20 @@ export class BitqueryService {
       pairInfo.target.price = targetPrice;
       pairInfo.liquidity = pairInfo.base.pooled_token * 2 * pairInfo.base.price;
     }
-    await updateAllPair(this.pairBitqueryModel, { addressLP }, pairInfo);
     await this.cacheManager.set(`pair-${addressLP}`, pairInfo, { ttl: 120 });
     return pairInfo;
   }
 
   async getTokenInformation(address: string, network: string) {
-    const cachedValue = await this.cacheManager.get(`token-${address}`);
+    const cachedValue: TokenInformationDto = await this.cacheManager.get(
+      `token-${address}`,
+    );
     if (cachedValue) {
-      this.logger.log('Hit Query() cache');
+      this.logger.log('Hit token information() cache');
       return cachedValue;
     }
-    const tokenModel = await this.tokenBitqueryModel.findOne({ address });
-    const verify = await verifyModel(tokenModel);
-    if (verify) return tokenModel;
-    if (!tokenModel) {
-      this.logger.log('Hit new calculate token information');
-      return await this.calculateTokenInformation(address, network);
-    } else {
-      this.logger.log('Hit update calculate token information');
-      await updatePair(this.tokenBitqueryModel, { address });
-      this.calculateTokenInformation(address, network);
-    }
-
-    return tokenModel;
+    this.logger.log('Hit new calculate token information');
+    return await this.calculateTokenInformation(address, network);
   }
 
   async calculateTokenInformation(address: string, network: string) {
@@ -172,20 +136,33 @@ export class BitqueryService {
       tokenInfo.quote = quote;
       tokenInfo.tokenPrice = dexTrades[0].quotePrice;
       if (!tokenInfo.quote.stable) {
-        const { dexTrades: dex } = await this.getQueryTokenInformation(
+        tokenInfo.tokenPrice *= await this.getQuoteTokenPrice(
           network,
           tokenInfo.quote.address,
-          getQuoteCurrency(network).address,
         );
-        tokenInfo.tokenPrice *= dex[0].quotePrice;
       }
       tokenInfo.marketCap =
         (transfers[0].minted - transfers[0].burned) * tokenInfo.tokenPrice;
     }
-    await updateAllPair(this.tokenBitqueryModel, { address }, tokenInfo);
     await this.cacheManager.set(`token-${address}`, tokenInfo, { ttl: 120 });
 
     return tokenInfo;
+  }
+
+  async getQuoteTokenPrice(network: string, quoteAddress: string) {
+    const cachedValue: TokenInformationDto = await this.cacheManager.get(
+      `token-${quoteAddress}`,
+    );
+    if (cachedValue) {
+      this.logger.log('Hit token information() cache');
+      return cachedValue.tokenPrice;
+    }
+    const { dexTrades: dex } = await this.getQueryTokenInformation(
+      network,
+      quoteAddress,
+      getQuoteCurrency(network).address,
+    );
+    return dex[0].quotePrice;
   }
 
   async calculateLastPrice(network: string, address: string) {

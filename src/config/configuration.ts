@@ -17,6 +17,10 @@ export default () => ({
   },
   tokenListUrl: process.env.TOKEN_LIST_URL,
   dualFarmsListUrl: process.env.DUAL_FARMS_LIST_URL,
+  bitquery: {
+    url: process.env.BITQUERY_URL,
+    apikey: process.env.BITQUERY_APIKEY,
+  },
   97: {
     lottery: {
       address: '0xe42Ff4758C37ccC3A54004b176384477bbBe70D6',
