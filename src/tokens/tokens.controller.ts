@@ -28,8 +28,14 @@ export class TokensController {
   }
 
   @Get(':type')
-  async getStatsForWallet(@Param('type') type: string): Promise<TokenList> {
+  async getTokensPerType(@Param('type') type: string): Promise<TokenList> {
     this.logger.log('Called GET /tokens/:type');
     return this.tokensService.getTokensFromType(type);
+  }
+
+  @Get('/refresh/:chainId')
+  async refreshTokens(@Param('chainId') chainId: string): Promise<TokenList> {
+    this.logger.log('Called GET /tokens/refresh/:chainId');
+    return this.tokensService.refreshTokens(chainId);
   }
 }
