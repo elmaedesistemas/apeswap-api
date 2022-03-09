@@ -1,13 +1,17 @@
 /*
   TODO
-  - Get things working on Polygon side (web3 config seems to be just for 1 chain)
-  - Make cron jobs for all
-  - Improve efficiency and cleanliness of code (less for loops)
   - Add basic error handling
 */
 
-import { Injectable, Logger, HttpService } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  HttpService,
+  CACHE_MANAGER,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { Cache } from 'cache-manager';
 import { Model } from 'mongoose';
 import { SubgraphService } from '../stats/subgraph.service';
 import { ChainConfigService } from 'src/config/chain.configuration.service';
@@ -23,6 +27,7 @@ export class TokensService {
   );
 
   constructor(
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
     @InjectModel(TokenList.name)
     private tokenListModel: Model<TokenListDocument>,
     private subgraphService: SubgraphService,
@@ -40,37 +45,45 @@ export class TokensService {
   // Called at /tokens
   async getAllTokens(): Promise<TokenList[]> {
     const tokenLists: TokenList[] = await this.findAllTokenLists();
-
     return tokenLists;
   }
 
   // Called at /tokens/:type
   async getTokensFromType(type: string): Promise<TokenList> {
+    // Check 1: Cache storage within 2 mins
+    const cachedValue = await this.cacheManager.get(`tokenList-${type}`);
+    if (cachedValue) {
+      this.logger.log(`Pulled ${type} tokens from cache...`);
+      return cachedValue as TokenList;
+    }
+
+    // Check 2: Latest Database entry within 5 mins
     const tokenList: TokenList = await this.findTokenList(type);
+    const databaseValue = await this.verifyDatabaseTime(tokenList);
+    if (databaseValue) {
+      this.logger.log(`Pulled ${type} tokens from database entry...`);
+      return databaseValue;
+    }
+
+    // Check 3: Update Created At & Get new data, while returning existing data
+    await this.updateTokenListCreatedAt();
+    this.refreshTokensLists();
 
     return tokenList;
   }
 
-  // Called at /tokens/refresh/:chainId
-  async refreshTokens(chainId: string): Promise<any> {
+  /* 
+    MAIN FUNCTIONS TO PROCESS TOKEN DATA
+  */
+
+  async refreshTokensLists(): Promise<any> {
     const { data } = await this.httpService
       .get('https://apeswap-strapi.herokuapp.com/home-v-2-token-lists')
       .toPromise();
 
-    if (parseInt(chainId) === 56) {
-      const tokenListConfig = data[0].bsc;
-      await this.processTokensFromSubgraphData(56, tokenListConfig);
-    } else if (parseInt(chainId) === 137) {
-      const tokenListConfig = data[0].polygon;
-      await this.processTokensFromSubgraphData(137, tokenListConfig);
-    }
-
-    return `Refreshed ${chainId} 🐵❤️`;
+    this.processTokensFromSubgraphData(56, data[0].bsc);
+    this.processTokensFromSubgraphData(137, data[0].polygon);
   }
-
-  /* 
-    CRONJOB PROCESSOR
-  */
 
   async processTokensFromSubgraphData(
     chainId: number,
@@ -88,7 +101,10 @@ export class TokensService {
       previousTokenData,
     );
 
-    // 3. Store ALL token data for the given chain
+    // 3. Store ALL token data for the given chain in DB & cache
+    await this.cacheManager.set(`tokenLists-${chainId}`, filteredTokenData, {
+      ttl: 120,
+    });
     const tokenStorageResponse = await this.createTokenList({
       title: `all-${chainId}`,
       tokens: filteredTokenData,
@@ -108,7 +124,10 @@ export class TokensService {
           ),
         );
 
-        // Store each computer token list in MongoDB
+        // Store each computed token list in cache & MongoDB
+        await this.cacheManager.set(`tokenList-${type}`, applicableTokens, {
+          ttl: 120,
+        });
         await this.createTokenList({
           title: type,
           tokens: applicableTokens,
@@ -116,6 +135,9 @@ export class TokensService {
       }
     });
 
+    this.logger.log(
+      `Refresh for chain ${chainId} complete. Data stored in cache & database`,
+    );
     return tokenStorageResponse;
   }
 
@@ -194,9 +216,22 @@ export class TokensService {
 
   getTokenLogoUrl = async (tokenAddress: string, tokenListings: any) => {
     return tokenListings.find(
-      (element) => tokenAddress.toUpperCase() === element.address.toUpperCase(),
+      (token) => tokenAddress.toUpperCase() === token.address.toUpperCase(),
     )?.logoURI;
   };
+
+  // Called if cache comes up expired and we're trying to check the database stats for /tvl or just /
+  async verifyDatabaseTime(data: any, time = 30000) {
+    const now = Date.now();
+
+    if (!data?.createdAt) return null;
+
+    // If the last DB creation was created greater than 5 mins ago, reject.
+    const lastCreatedAt = new Date(data.createdAt).getTime();
+    if (now - lastCreatedAt > time) return null;
+
+    return data;
+  }
 
   /* 
     DATABASE FUNCTIONALITY
@@ -223,5 +258,16 @@ export class TokensService {
 
   findAllTokenLists() {
     return this.tokenListModel.find();
+  }
+
+  updateTokenListCreatedAt() {
+    return this.tokenListModel.updateMany(
+      {},
+      {
+        $currentDate: {
+          createdAt: true,
+        },
+      },
+    );
   }
 }

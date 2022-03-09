@@ -27,15 +27,15 @@ export class TokensController {
     return await this.tokensService.getAllTokens();
   }
 
+  @Get('/refresh')
+  async refreshTokens(): Promise<TokenList> {
+    this.logger.log('Called GET /tokens/refresh');
+    return this.tokensService.refreshTokensLists();
+  }
+
   @Get(':type')
   async getTokensPerType(@Param('type') type: string): Promise<TokenList> {
     this.logger.log('Called GET /tokens/:type');
     return this.tokensService.getTokensFromType(type);
-  }
-
-  @Get('/refresh/:chainId')
-  async refreshTokens(@Param('chainId') chainId: string): Promise<TokenList> {
-    this.logger.log('Called GET /tokens/refresh/:chainId');
-    return this.tokensService.refreshTokens(chainId);
   }
 }

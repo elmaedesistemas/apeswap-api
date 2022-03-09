@@ -659,7 +659,7 @@ export class StatsService {
           name: 'totalSupply',
         },
       ],
-      chainId
+      chainId,
     );
     const burntAmount = burned / 10 ** decimals;
     const totalSupply = supply / 10 ** decimals;
