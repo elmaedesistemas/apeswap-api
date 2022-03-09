@@ -187,11 +187,13 @@ export class TokensService {
     for (let i = 0; i < currentTokenData.length; i++) {
       const { id, symbol, tokenDayData } = currentTokenData[i];
       const previousToken = previousTokenData.find(
-        ({ id: prevId }) => prevId === id,
+        ({ id: prevId }) => prevId.toLowerCase() === id.toLowerCase(),
       );
 
       // Skip the iteration if no matching token found
-      if (!previousToken) continue;
+      if (!previousToken || !tokenDayData[0]) {
+        continue;
+      }
 
       // Get price & % change
       const currentPrice = parseFloat(tokenDayData[0].priceUSD);

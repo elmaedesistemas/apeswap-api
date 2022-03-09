@@ -48,7 +48,7 @@ export function topTokensQuery(block: string) {
   }
 
   return `{
-    tokens(orderBy: tradeVolumeUSD orderDirection: desc first: 100${input}) {
+    tokens(orderBy: tradeVolumeUSD orderDirection: desc first: 300${input}) {
       id
       symbol
       name
