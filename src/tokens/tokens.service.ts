@@ -44,46 +44,64 @@ export class TokensService {
 
   // Called at /tokens
   async getAllTokens(): Promise<TokenList[]> {
-    const tokenLists: TokenList[] = await this.findAllTokenLists();
-    return tokenLists;
+    try {
+      const tokenLists: TokenList[] = await this.findAllTokenLists();
+      return tokenLists;
+    } catch (error) {
+      this.logger.error(error.message);
+      return error.message;
+    }
   }
 
   // Called at /tokens/:type
   async getTokensFromType(type: string): Promise<TokenList> {
-    // Check 1: Cache storage within 2 mins
-    const cachedValue = await this.cacheManager.get(`tokenList-${type}`);
-    if (cachedValue) {
-      this.logger.log(`Pulled ${type} tokens from cache...`);
-      return cachedValue as TokenList;
+    try {
+      // Check 1: Cache storage within 2 mins
+      const cachedValue = await this.cacheManager.get(`tokenList-${type}`);
+      if (cachedValue) {
+        this.logger.log(`Pulled ${type} tokens from cache...`);
+        return cachedValue as TokenList;
+      }
+
+      // Check 2: Latest Database entry within 5 mins
+      const tokenList: TokenList = await this.findTokenList(type);
+      const databaseValue = await this.verifyDatabaseTime(tokenList);
+      if (databaseValue) {
+        this.logger.log(`Pulled ${type} tokens from database entry...`);
+        return databaseValue;
+      }
+
+      // Check 3: Update Created At & Get new data, while returning existing data
+      await this.updateTokenListCreatedAt();
+      this.refreshTokensLists();
+
+      return tokenList;
+    } catch (error) {
+      this.logger.error(error.message);
+      return error.message;
     }
+  }
 
-    // Check 2: Latest Database entry within 5 mins
-    const tokenList: TokenList = await this.findTokenList(type);
-    const databaseValue = await this.verifyDatabaseTime(tokenList);
-    if (databaseValue) {
-      this.logger.log(`Pulled ${type} tokens from database entry...`);
-      return databaseValue;
+  // Called at /tokens/request
+  async refreshTokensLists(): Promise<any> {
+    try {
+      const { data } = await this.httpService
+        .get('https://apeswap-strapi.herokuapp.com/home-v-2-token-lists')
+        .toPromise();
+
+      await this.processTokensFromSubgraphData(56, data[0].bsc);
+      await this.processTokensFromSubgraphData(137, data[0].polygon);
+
+      return 'Tokens succesfully refreshed ❤️🐵';
+    } catch (error) {
+      this.logger.error(error.message);
+      return error.message;
     }
-
-    // Check 3: Update Created At & Get new data, while returning existing data
-    await this.updateTokenListCreatedAt();
-    this.refreshTokensLists();
-
-    return tokenList;
   }
 
   /* 
-    MAIN FUNCTIONS TO PROCESS TOKEN DATA
+    MAIN FUNCTION TO PROCESS TOKEN DATA
   */
-
-  async refreshTokensLists(): Promise<any> {
-    const { data } = await this.httpService
-      .get('https://apeswap-strapi.herokuapp.com/home-v-2-token-lists')
-      .toPromise();
-
-    this.processTokensFromSubgraphData(56, data[0].bsc);
-    this.processTokensFromSubgraphData(137, data[0].polygon);
-  }
 
   async processTokensFromSubgraphData(
     chainId: number,
