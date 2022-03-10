@@ -1,8 +1,3 @@
-/*
-  TODO
-  - Add basic error handling
-*/
-
 import {
   Inject,
   Injectable,
