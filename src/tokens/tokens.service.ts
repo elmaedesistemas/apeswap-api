@@ -49,13 +49,13 @@ export class TokensService {
   }
 
   // Called at /tokens/:type
-  async getTokensFromType(type: string): Promise<TokenList> {
+  async getTokensFromType(type: string): Promise<Token[]> {
     try {
       // Check 1: Cache storage within 2 mins
       const cachedValue = await this.cacheManager.get(`tokenList-${type}`);
       if (cachedValue) {
         this.logger.log(`Pulled ${type} tokens from cache...`);
-        return cachedValue as TokenList;
+        return cachedValue as Token[];
       }
 
       // Check 2: Latest Database entry within 5 mins
@@ -63,14 +63,14 @@ export class TokensService {
       const databaseValue = await this.verifyDatabaseTime(tokenList);
       if (databaseValue) {
         this.logger.log(`Pulled ${type} tokens from database entry...`);
-        return databaseValue;
+        return databaseValue.tokens;
       }
 
       // Check 3: Update Created At & Get new data, while returning existing data
       await this.updateTokenListCreatedAt();
       this.refreshTokensLists();
 
-      return tokenList;
+      return tokenList.tokens;
     } catch (error) {
       this.logger.error(error.message);
       return error.message;

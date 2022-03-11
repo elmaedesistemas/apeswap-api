@@ -10,6 +10,7 @@ import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { TokenList } from 'src/interfaces/tokens/tokenList.dto';
 import { SentryInterceptor } from 'src/interceptor/sentry.interceptor';
 import { TokensService } from './tokens.service';
+import { Token } from 'src/interfaces/tokens/token.dto';
 
 @ApiTags('tokens')
 @Controller('tokens')
@@ -34,7 +35,7 @@ export class TokensController {
   }
 
   @Get(':type')
-  async getTokensPerType(@Param('type') type: string): Promise<TokenList> {
+  async getTokensPerType(@Param('type') type: string): Promise<Token[]> {
     this.logger.log('Called GET /tokens/:type');
     return this.tokensService.getTokensFromType(type);
   }
