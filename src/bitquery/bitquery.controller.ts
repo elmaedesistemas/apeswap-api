@@ -13,7 +13,8 @@ import { ApiTags } from '@nestjs/swagger';
 import { BitqueryService } from './bitquery.service';
 import { CandleDto, CandleOptionsDto } from './dto/candle.dto';
 import { PairInformationDto } from './dto/pairInformation.dto';
-import { TokenInformationDto } from './dto/tokenInformation.dto';
+import { TokenInformationDto, TokenLPInformationDto } from './dto/tokenInformation.dto';
+import { WalletBalanceDto } from './dto/walletBalance.dto';
 
 @ApiTags('bitquery')
 @Controller('bitquery')
@@ -37,6 +38,22 @@ export class BitqueryController {
   ): Promise<TokenInformationDto> {
     this.logger.debug(`Called GET /token/${network}/${address}`);
     return await this.bitqueryService.getTokenInformation(address, network);
+  }
+  @Get('/token/:network/:address/lp')
+  async getTokenPairLPInformation(
+    @Param('address') address: string,
+    @Param('network') network: string,
+  ): Promise<TokenLPInformationDto> {
+    this.logger.debug(`Called GET /token/${network}/${address}/lp`);
+    return await this.bitqueryService.getTokenPairLPInformation(address, network);
+  }
+  @Get('/wallet/:address/:network')
+  async getWalletInformation(
+    @Param('address') address: string,
+    @Param('network') network: string,
+  ): Promise<WalletBalanceDto> {
+    this.logger.debug(`Called GET /wallet/${address}/${network}`);
+    return await this.bitqueryService.getWalletBalances(network, address);
   }
   @Get('/candle/:address')
   @UsePipes(new ValidationPipe({ transform: true }))

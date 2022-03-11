@@ -12,11 +12,13 @@ import {
   queryPairInformation,
   queryPoolBalances,
   queryTokenInformation,
+  queryTokenPairsLP,
   queryTreasuryGnana,
+  queryWalletBalances,
   QUOTE_CURRENCY_BSC,
 } from './bitquery.queries';
 import { PairInformationDto } from './dto/pairInformation.dto';
-import { TokenInformationDto } from './dto/tokenInformation.dto';
+import { TokenInformationDto, TokenLPInformationDto } from './dto/tokenInformation.dto';
 import {
   calculatePrice,
   getQuoteCurrencies,
@@ -24,6 +26,8 @@ import {
 } from './utils/helper.bitquery';
 import { CandleOptionsDto } from './dto/candle.dto';
 import { ChainConfigService } from 'src/config/chain.configuration.service';
+import { WalletBalanceDto } from './dto/walletBalance.dto';
+import { info } from 'console';
 
 @Injectable()
 export class BitqueryService {
@@ -55,50 +59,14 @@ export class BitqueryService {
     const pairInfo: PairInformationDto = {
       addressLP,
     };
-    const {
-      data: { ethereum },
-    } = await this.queryBitquery(queryPairInformation(addressLP, network));
-    if (ethereum.smartContractCalls) {
-      const tokenFilters = ethereum.smartContractCalls.filter(
-        (f) => f.smartContract?.contractType === 'Token',
-      );
-      pairInfo.quote = getQuoteCurrency(network);
-      const {
-        data: {
-          ethereum: { address: balances, base, target },
-        },
-      } = await this.queryBitquery(
-        queryPoolBalances(
-          addressLP,
-          network,
-          tokenFilters[0].smartContract.address.address,
-          tokenFilters[1].smartContract.address.address,
-          pairInfo.quote.address,
-        ),
-      );
-      pairInfo.base = {
-        name: balances[0].balances[0].currency.symbol,
-        address: balances[0].balances[0].currency.address,
-        pooled_token: balances[0].balances[0].value,
-      };
-      pairInfo.target = {
-        name: balances[0].balances[1].currency.symbol,
-        address: balances[0].balances[1].currency.address,
-        pooled_token: balances[0].balances[1].value,
-      };
-      pairInfo.ticker_id = `${pairInfo.base.name}_${pairInfo.target.name}`;
-      const { basePrice, targetPrice } = calculatePrice(
-        pairInfo,
-        base,
-        target,
-        tokenFilters[0].smartContract.address.address,
-      );
-      pairInfo.base.price = basePrice;
-      pairInfo.target.price = targetPrice;
-      pairInfo.liquidity = pairInfo.base.pooled_token * 2 * pairInfo.base.price;
+    const info = await this.calculatePairData(network, [addressLP])
+    const data = {
+      ...pairInfo,
+      ...info[0]
     }
-    await this.cacheManager.set(`pair-${addressLP}`, pairInfo, { ttl: 120 });
-    return pairInfo;
+
+    await this.cacheManager.set(`pair-${addressLP}`, data, { ttl: 120 });
+    return data;
   }
 
   async getTokenInformation(address: string, network: string) {
@@ -106,10 +74,10 @@ export class BitqueryService {
       `token-${address}`,
     );
     if (cachedValue) {
-      this.logger.log('Hit token information() cache');
+      this.logger.log(`Hit token information(${address}, ${network}) cache`);
       return cachedValue;
     }
-    this.logger.log('Hit new calculate token information');
+    this.logger.log(`Hit new calculate token information(${address}, ${network})`);
     return await this.calculateTokenInformation(address, network);
   }
 
@@ -149,6 +117,102 @@ export class BitqueryService {
     return tokenInfo;
   }
 
+  async getTokenPairLPInformation(address: string, network: string): Promise<TokenLPInformationDto> {
+    const cachedValue: TokenLPInformationDto = await this.cacheManager.get(
+      `token-lp-${address}`,
+    );
+    if (cachedValue) {
+      this.logger.log('Hit token LP information() cache');
+      return cachedValue;
+    }
+    this.logger.log('Hit new calculate token LP information');
+    return await this.getTokenPairLP(network, address);
+  }
+
+  async getTokenPairLP(network: string, address: string): Promise<TokenLPInformationDto> {
+    const data: TokenLPInformationDto = {
+      address,
+      lp: []
+    }
+    const { data: { ethereum: { dexTrades } } } = await this.queryBitquery(queryTokenPairsLP(network, address))
+    if (!dexTrades || dexTrades.length === 0) return data;
+
+    const addresses = dexTrades.map(d => d.smartContract.address.address)
+    data.lp = await this.calculatePairData(network, addresses);
+    await this.cacheManager.set(`token-lp-${address}`, data, { ttl: 120 });
+    
+    return data;
+  }
+
+  async calculatePairData(network: string, addresses: string[]) {
+    const limit = 10 * addresses.length;
+    const {
+      data: { ethereum: { smartContractCalls } },
+    } = await this.queryBitquery(queryPairInformation(network, limit), { address: addresses });
+    const info = [];
+    if (smartContractCalls) {
+
+      for (let index = 0; index < addresses.length; index++) {
+        const data = {
+          quote: null,
+          base: null,
+          target: null,
+          ticker_id: null,
+          liquidity: 0
+        }
+        const address = addresses[index];
+        const tokenFilters = smartContractCalls.filter(
+          (f) => f.smartContract?.contractType === 'Token' && address === f.caller.address,
+        );
+
+        data.quote = getQuoteCurrency(network);
+        const {
+          data: {
+            ethereum: { address: balances, base, target },
+          },
+        } = await this.queryBitquery(
+          queryPoolBalances(
+            address,
+            network,
+            tokenFilters[0].smartContract.address.address,
+            tokenFilters[1].smartContract.address.address,
+            data.quote.address,
+          ),
+        );
+        data.base = {
+          name: balances[0].balances[0].currency.symbol,
+          address: balances[0].balances[0].currency.address,
+          pooled_token: balances[0].balances[0].value,
+        };
+        data.target = {
+          name: balances[0].balances[1].currency.symbol,
+          address: balances[0].balances[1].currency.address,
+          pooled_token: balances[0].balances[1].value,
+        };
+        data.ticker_id = `${data.base.name}_${data.target.name}`;
+        const { basePrice, targetPrice } = calculatePrice(
+          data,
+          base,
+          target,
+          tokenFilters[0].smartContract.address.address,
+        );
+        data.base.price = basePrice;
+        data.target.price = targetPrice;
+        data.liquidity = data.base.pooled_token * 2 * data.base.price;
+        info.push(data)
+      }
+    }
+    info.sort(function (a, b) {
+      if (a.liquidity < b.liquidity) {
+        return 1;
+      }
+      if (a.liquidity > b.liquidity) {
+        return -1;
+      }
+      return 0;
+    });
+    return info;
+  }
   async getQuoteTokenPrice(network: string, quoteAddress: string) {
     const cachedValue: TokenInformationDto = await this.cacheManager.get(
       `token-${quoteAddress}`,
@@ -232,23 +296,6 @@ export class BitqueryService {
     }
   }
 
-  async getTreasuryGnana(address: string) {
-    const {
-      data: {
-        ethereum: { address: info },
-      },
-    } = await this.queryBitquery(queryTreasuryGnana(address));
-    const { attributes } = info[0].smartContract;
-    const circulatingSupply = attributes.find(
-      (i) => i.name === 'bananaReserves',
-    )?.value;
-    const reserve = attributes.find((i) => i.name === 'goldenBananaReserves')
-      ?.value;
-    const supply = reserve + circulatingSupply;
-
-    return { circulatingSupply, reserve, supply };
-  }
-
   async getDailyLPVolume(
     network: string,
     address: string[],
@@ -269,6 +316,31 @@ export class BitqueryService {
       volumes: dexTrades,
       balance: listBaseCurrency,
     };
+  }
+
+  async getWalletBalances(network: string, address: string) {
+    const info: WalletBalanceDto = {
+      address,
+      balances: []
+    } 
+    const { data: { ethereum: { address: balances }}} = await this.queryBitquery(queryWalletBalances(network, address))
+    
+    info.balances = balances[0].balances.map((b) => {
+      return {
+        ...b.currency,
+        value: b.value
+      }
+    })
+    info.balances.sort(function (a, b) {
+      if (a.name > b.name) {
+        return 1;
+      }
+      if (a.name < b.name) {
+        return -1;
+      }
+      return 0;
+    });
+    return info;
   }
   // bitquery
   async queryBitquery(query, variables = null): Promise<any> {

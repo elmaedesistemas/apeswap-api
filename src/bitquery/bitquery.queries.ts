@@ -30,31 +30,30 @@ export const QUOTE_CURRENCY_MATIC = {
   },
 };
 
-export function queryPairInformation(address: string, network: string) {
-  return `{
+export function queryPairInformation(network: string, limit = 10) {
+  return `query($address: [String!]){
         ethereum(network: ${network}) {
             smartContractCalls(
-              options: {desc: "count", limit: 10, offset: 0}
-          date: {since: null, till: null}
-          caller: {is: "${address}"}
-        ) {
+              options: {desc: "count", limit: ${limit}, offset: 0}
+              caller: {in: $address}
+            ) {
               smartContract {
                 address {
                   address
-                  annotation
-            }
-            contractType
-            currency {
+                }
+                contractType
+                currency {
                   name
                   symbol
+                }
+              }
+              count
+              caller {
+                address
+              }
             }
-      }
-          max_date: maximum(of: date)
-          count
-          uniq_methods: count(uniq: smart_contract_methods)
-          gasValue(calculate: average)
-    }
-  }}`;
+          }
+        }`;
 }
 
 export function queryPoolBalances(
@@ -248,4 +247,61 @@ export function queryLPVolume(
   }
 }
   `;
+}
+
+export function queryTokenPairsLP(
+  network: string,
+  baseCurrency: string
+) {
+  return `{
+    ethereum(network: ${network}) {
+      dexTrades(baseCurrency: {is: "${baseCurrency}"}, options: {desc: "count", limit: 5}) {
+        count
+        tradeAmount(in: USD)
+        exchange {
+          fullName
+          address {
+            address
+          }
+        }
+        smartContract {
+          address {
+            address
+          }
+        }
+        quoteCurrency {
+          address
+          symbol
+          name
+        }
+        baseCurrency {
+          address
+          name
+          symbol
+        }
+      }
+    }
+  }
+  `
+}
+
+export function queryWalletBalances(
+  network: string,
+  address: string
+) {
+  return `{
+    ethereum(network: ${network}) {
+      address(address: {is: "${address}"}) {
+        balances {
+          currency {
+            symbol
+            name
+            address
+          }
+          value
+        }
+      }
+    }
+  }
+  `
 }
