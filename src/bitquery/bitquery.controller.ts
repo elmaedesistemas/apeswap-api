@@ -13,7 +13,10 @@ import { ApiTags } from '@nestjs/swagger';
 import { BitqueryService } from './bitquery.service';
 import { CandleDto, CandleOptionsDto } from './dto/candle.dto';
 import { PairInformationDto } from './dto/pairInformation.dto';
-import { TokenInformationDto, TokenLPInformationDto } from './dto/tokenInformation.dto';
+import {
+  TokenInformationDto,
+  TokenLPInformationDto,
+} from './dto/tokenInformation.dto';
 import { WalletBalanceDto } from './dto/walletBalance.dto';
 
 @ApiTags('bitquery')
@@ -45,7 +48,10 @@ export class BitqueryController {
     @Param('network') network: string,
   ): Promise<TokenLPInformationDto> {
     this.logger.debug(`Called GET /token/${network}/${address}/lp`);
-    return await this.bitqueryService.getTokenPairLPInformation(address, network);
+    return await this.bitqueryService.getTokenPairLPInformation(
+      address,
+      network,
+    );
   }
   @Get('/wallet/:address/:network')
   async getWalletInformation(

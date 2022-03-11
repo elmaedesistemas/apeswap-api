@@ -249,10 +249,7 @@ export function queryLPVolume(
   `;
 }
 
-export function queryTokenPairsLP(
-  network: string,
-  baseCurrency: string
-) {
+export function queryTokenPairsLP(network: string, baseCurrency: string) {
   return `{
     ethereum(network: ${network}) {
       dexTrades(baseCurrency: {is: "${baseCurrency}"}, options: {desc: "count", limit: 5}) {
@@ -282,13 +279,10 @@ export function queryTokenPairsLP(
       }
     }
   }
-  `
+  `;
 }
 
-export function queryWalletBalances(
-  network: string,
-  address: string
-) {
+export function queryWalletBalances(network: string, address: string) {
   return `{
     ethereum(network: ${network}) {
       address(address: {is: "${address}"}) {
@@ -303,5 +297,5 @@ export function queryWalletBalances(
       }
     }
   }
-  `
+  `;
 }
