@@ -375,6 +375,35 @@ export class StatsNetworkService {
     });
   }
 
+  async getLpAprs(): Promise<any> {
+    try {
+      const bscNetworkStatsData = await this.getCalculateStatsNetwork(56);
+      const polygonNetworkStatsData = await this.getCalculateStatsNetwork(137);
+
+      const polygonLpAprData = polygonNetworkStatsData['farms'].map((farm) => {
+        return { pid: farm.poolIndex, lpApr: farm.lpRewards.apr };
+      });
+
+      const bscLpAprData = bscNetworkStatsData['farms'].map((farm) => {
+        return { pid: farm.poolIndex, lpApr: farm.lpRewards.apr };
+      });
+
+      return [
+        {
+          chainId: 137,
+          lpAprs: polygonLpAprData,
+        },
+        {
+          chainId: 56,
+          lpAprs: bscLpAprData,
+        },
+      ];
+    } catch (error) {
+      this.logger.error(`Failed to get LP Aprs: ${error.message}`);
+      return null;
+    }
+  }
+
   async getHomepageNetworkFeatures(): Promise<any> {
     const [farmDetails, poolDetails, lendingDetails] = [[], [], []];
 

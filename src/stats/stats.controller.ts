@@ -75,6 +75,12 @@ export class StatsController {
     return await this.statsNetworkService.getHomepageNetworkFeatures();
   }
 
+  @Get('/network/lpAprs')
+  async getLpAprs(): Promise<any> {
+    this.logger.debug('Called GET /stats/network/lpAprs');
+    return await this.statsNetworkService.getLpAprs();
+  }
+
   @Get('/features')
   async getHomepageFeatures(): Promise<any> {
     this.logger.debug('Called GET /stats/features');
