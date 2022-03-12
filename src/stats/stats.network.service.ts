@@ -38,6 +38,7 @@ export class StatsNetworkService {
   private readonly DUAL_FARMS_LIST_URL = this.configService.getData<string>(
     'dualFarmsListUrl',
   );
+  private readonly STRAPI_URL = process.env.APESWAP_STRAPI_URL;
 
   constructor(
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
@@ -96,11 +97,16 @@ export class StatsNetworkService {
       `calculateStats-network-${chainId}`,
     );
     if (cachedValue) {
-      this.logger.log('Hit calculateStatsNetwork() cache');
+      this.logger.log(`Hit calculateStatsNetwork() cache for chain ${chainId}`);
       return cachedValue as GeneralStatsNetworkDto;
     }
     const infoStats = await this.verifyStats(chainId);
-    if (infoStats) return infoStats;
+    if (infoStats) {
+      this.logger.log(
+        `Pulled Network Stats from Database Entry for chain ${chainId}`,
+      );
+      return infoStats;
+    }
     await this.updateCreatedAtStats({ chainId });
     this.getStatsNetwork(chainId);
     const generalStats: any = await this.findGeneralStats({ chainId });
@@ -109,6 +115,9 @@ export class StatsNetworkService {
 
   async getStatsNetwork(chainId: number): Promise<GeneralStatsNetworkDto> {
     try {
+      this.logger.log(
+        `Attempting to generate network stats for chain ${chainId}.`,
+      );
       const masterApeContract = getContractNetwork(
         this.configService.getData<string>(`${chainId}.abi.masterApe`),
         this.configService.getData<string>(`${chainId}.contracts.masterApe`),
@@ -364,5 +373,36 @@ export class StatsNetworkService {
         liquidity: liquidity.toFixed(0),
       };
     });
+  }
+
+  async getHomepageNetworkFeatures(): Promise<any> {
+    const [farmDetails, poolDetails, lendingDetails] = [[], [], []];
+
+    try {
+      const { data: features } = await this.httpService
+        .get(`${this.STRAPI_URL}/home-v-2-features`)
+        .toPromise();
+
+      const { farms: featuredFarms, pools: featuredPools } = features[0];
+
+      const allStats = await this.getCalculateStatsNetwork(56);
+      const { farms, incentivizedPools: pools } = allStats;
+
+      featuredFarms.forEach((element) => {
+        farmDetails.push(farms.find(({ poolIndex }) => element === poolIndex));
+      });
+
+      featuredPools.forEach((element) => {
+        poolDetails.push(pools.find(({ id }) => element === id));
+      });
+
+      // TODO: Pull Lending Data
+
+      return { farmDetails, poolDetails, lendingDetails };
+    } catch (error) {
+      this.logger.error(
+        `Error when attempted to retrieve homepage featurs: ${error.message}`,
+      );
+    }
   }
 }
