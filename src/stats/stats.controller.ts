@@ -69,6 +69,12 @@ export class StatsController {
     return await this.statsService.getFarmPrices();
   }
 
+  @Get('/features')
+  async getHomepageFeatures(): Promise<any> {
+    this.logger.debug('Called GET /stats/features');
+    return await this.statsService.getHomepageFeatures();
+  }
+
   @Get('network/:chainId')
   @UsePipes(new ValidationPipe({ transform: true }))
   async getStatsNetwork(
