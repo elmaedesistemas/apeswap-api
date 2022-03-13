@@ -410,6 +410,7 @@ export class StatsService {
   }
 
   async calculateStats() {
+    this.logger.log(`Attempting to calculate general stats`);
     const masterApeContract = masterApeContractWeb();
 
     const poolInfos = await this.calculatePoolInfo(masterApeContract);
