@@ -13,6 +13,7 @@ export class TokensService {
   private readonly TOKEN_LIST_URL = this.configService.getData<string>(
     'tokenListUrl',
   );
+  private readonly POLYGONSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY;
 
   constructor(
     @InjectModel(TokenList.name)
@@ -43,7 +44,7 @@ export class TokensService {
   // Called at /tokens/:type
   async getTokensFromType(type: string): Promise<Token[]> {
     try {
-      // Check 1: Latest Database entry within 5 mins
+      // Check 1: Latest Database entry within 2 mins
       const tokenList: TokenList = await this.findTokenList(type);
       const databaseValue = await this.verifyDatabaseTime(tokenList);
       if (databaseValue) {
@@ -142,7 +143,17 @@ export class TokensService {
     if (chainId === 56) {
       yesterdayBlock = (await this.bscWeb3.eth.getBlockNumber()) - 28800;
     } else if (chainId === 137) {
-      yesterdayBlock = (await this.polygonWeb3.eth.getBlockNumber()) - 43200;
+      const previousTimestamp = Math.floor(Date.now() / 1000) - 86400;
+
+      const {
+        data: { result },
+      } = await this.httpService
+        .get(
+          `https://api.polygonscan.com/api?module=block&action=getblocknobytime&timestamp=${previousTimestamp}&closest=before&apikey=${this.POLYGONSCAN_API_KEY}`,
+        )
+        .toPromise();
+
+      yesterdayBlock = result;
     }
 
     const currentTokenData = await this.subgraphService.getTopTokensData(
@@ -218,7 +229,7 @@ export class TokensService {
 
     if (!data?.createdAt) return null;
 
-    // If the last DB creation was created greater than 5 mins ago, reject.
+    // If the last DB creation was created greater than 2 mins ago, reject.
     const lastCreatedAt = new Date(data.createdAt).getTime();
     if (now - lastCreatedAt > time) return null;
 

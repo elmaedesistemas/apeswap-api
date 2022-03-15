@@ -11,6 +11,9 @@ export class TokenList {
 
   @Prop({ required: true })
   tokens: Token[];
+
+  @Prop({ default: Date.now })
+  createdAt: Date;
 }
 
 export const TokenListSchema = SchemaFactory.createForClass(TokenList);
