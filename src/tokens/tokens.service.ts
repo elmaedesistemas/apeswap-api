@@ -223,14 +223,14 @@ export class TokensService {
     )?.logoURI;
   };
 
-  async verifyDatabaseTime(data: any, time = 12000) {
+  async verifyDatabaseTime(data: any, cacheDelay = 120000) {
     const now = Date.now();
 
     if (!data?.createdAt) return null;
 
     // If the last DB creation was created greater than 2 mins ago, reject.
     const lastCreatedAt = new Date(data.createdAt).getTime();
-    if (now - lastCreatedAt > time) return null;
+    if (now - lastCreatedAt > cacheDelay) return null;
 
     return data;
   }
