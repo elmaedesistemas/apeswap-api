@@ -228,12 +228,41 @@ export class StatsService {
       const allStats = await this.getAllStats();
       const { farms, incentivizedPools: pools } = allStats;
 
+      // Filter through farms on strapi, assign applicable values from stats
       featuredFarms.forEach((element) => {
-        farmDetails.push(farms.find(({ poolIndex }) => element === poolIndex));
+        const { name, address, poolIndex, apr } = farms.find(
+          ({ poolIndex }) => element === poolIndex,
+        );
+        farmDetails.push({
+          pid: poolIndex,
+          apr,
+          stakeToken: { name, address },
+          rewardToken: {
+            name: 'BANANA',
+            address: '0x603c7f932ed1fc6575303d8fb018fdcbb0f39a95',
+          },
+          link: 'https://apeswap.finance/farms',
+        });
       });
 
+      // Filter through pools on strapi endpoint, assign applicable values from stats
       featuredPools.forEach((element) => {
-        poolDetails.push(pools.find(({ id }) => element === id));
+        const {
+          id,
+          apr,
+          name,
+          rewardTokenAddress,
+          stakedTokenAddress,
+          rewardTokenSymbol,
+        } = pools.find(({ id }) => element === id);
+
+        poolDetails.push({
+          id,
+          apr,
+          stakeToken: { name, address: stakedTokenAddress },
+          rewardToken: { name: rewardTokenSymbol, address: rewardTokenAddress },
+          link: 'https://apeswap.finance/pools',
+        });
       });
 
       // TODO: Pull Lending Data
@@ -253,7 +282,7 @@ export class StatsService {
       // checks to see if there is a chancedValue at 'calculateTVLStats'. If there is one, console log a note & return it.
       const cachedValue = await this.cacheManager.get('calculateTVLStats');
       if (cachedValue) {
-        this.logger.log('Pulled TVL stats from cache...');
+        this.logger.log('Pulling TVL stats from cache...');
         return cachedValue as GeneralStatsChain;
       }
 
@@ -288,44 +317,52 @@ export class StatsService {
 
   // Function called to get updated TVL stats
   async calculateTvlStats() {
-    const [
-      lendingTvl,
-      polygonTvl,
-      bscTvl,
-      { burntAmount, totalSupply, circulatingSupply },
-      prices,
-      { circulatingSupply: gnanaCirculatingSupply },
-      partnerCount,
-    ] = await Promise.all([
-      this.getLendingTvl(),
-      this.subgraphService.getLiquidityPolygonData(),
-      this.subgraphService.getVolumeData(),
-      this.getBurnAndSupply(),
-      this.priceService.getTokenPrices(),
-      this.getGnanaSupply(),
-      this.getPartnerCount(),
-    ]);
-    const priceUSD = prices[bananaAddress()].usd;
-    const poolsTvlBsc = await this.getTvlBsc();
-    const tvl: GeneralStatsChain = {
-      tvl: polygonTvl.liquidity + bscTvl.liquidity + poolsTvlBsc + lendingTvl,
-      totalLiquidity: polygonTvl.liquidity + bscTvl.liquidity,
-      totalVolume: polygonTvl.totalVolume + bscTvl.totalVolume,
-      bsc: bscTvl,
-      polygon: polygonTvl,
-      burntAmount,
-      totalSupply,
-      circulatingSupply,
-      marketCap: circulatingSupply * priceUSD,
-      gnanaCirculatingSupply,
-      lendingTvl,
-      partnerCount,
-    };
+    try {
+      this.logger.log('Attemping to generate new TVL Stats...');
+      const [
+        lendingTvl,
+        polygonTvl,
+        bscTvl,
+        { burntAmount, totalSupply, circulatingSupply },
+        prices,
+        { circulatingSupply: gnanaCirculatingSupply },
+        partnerCount,
+      ] = await Promise.all([
+        this.getLendingTvl(),
+        this.subgraphService.getLiquidityPolygonData(),
+        this.subgraphService.getVolumeData(),
+        this.getBurnAndSupply(),
+        this.priceService.getTokenPrices(),
+        this.getGnanaSupply(),
+        this.getPartnerCount(),
+      ]);
+      const priceUSD = prices[bananaAddress()].usd;
+      const poolsTvlBsc = await this.getTvlBsc();
+      const tvl: GeneralStatsChain = {
+        tvl: polygonTvl.liquidity + bscTvl.liquidity + poolsTvlBsc + lendingTvl,
+        totalLiquidity: polygonTvl.liquidity + bscTvl.liquidity,
+        totalVolume: polygonTvl.totalVolume + bscTvl.totalVolume,
+        bsc: bscTvl,
+        polygon: polygonTvl,
+        burntAmount,
+        totalSupply,
+        circulatingSupply,
+        marketCap: circulatingSupply * priceUSD,
+        gnanaCirculatingSupply,
+        lendingTvl,
+        partnerCount,
+      };
+      // Stored in cache at 'calculateTVLStats', with an expiration value of 2 minutes (120 seconds)
+      await this.cacheManager.set('calculateTVLStats', tvl, { ttl: 120 });
+      await this.createTvlStats(tvl);
 
-    // Stored in cache at 'calculateTVLStats', with an expiration value of 2 minutes (120 seconds)
-    await this.cacheManager.set('calculateTVLStats', tvl, { ttl: 120 });
-    await this.createTvlStats(tvl);
-    return tvl;
+      this.logger.log('Successfully generated new TVL stats.');
+      return tvl;
+    } catch (error) {
+      this.logger.error(
+        `Failed to generate new TVL stats, error: ${error.message}`,
+      );
+    }
   }
 
   async getTvlBsc() {
@@ -524,7 +561,8 @@ export class StatsService {
       poolIndex !== 0 &&
       poolIndex !== 75 &&
       poolIndex !== 112 &&
-      poolIndex !== 162
+      poolIndex !== 162 &&
+      poolIndex !== 190
         ? await this.getLpInfo(poolInfo.lpToken, masterApeContractAddress())
         : await this.getTokenInfo(poolInfo.lpToken, masterApeContractAddress());
 

@@ -1,12 +1,5 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  HttpService,
-  CACHE_MANAGER,
-} from '@nestjs/common';
+import { Injectable, Logger, HttpService } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Cache } from 'cache-manager';
 import { Model } from 'mongoose';
 import { SubgraphService } from '../stats/subgraph.service';
 import { ChainConfigService } from 'src/config/chain.configuration.service';
@@ -22,7 +15,6 @@ export class TokensService {
   );
 
   constructor(
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
     @InjectModel(TokenList.name)
     private tokenListModel: Model<TokenListDocument>,
     private subgraphService: SubgraphService,
@@ -51,14 +43,7 @@ export class TokensService {
   // Called at /tokens/:type
   async getTokensFromType(type: string): Promise<Token[]> {
     try {
-      // Check 1: Cache storage within 2 mins
-      const cachedValue = await this.cacheManager.get(`tokenList-${type}`);
-      if (cachedValue) {
-        this.logger.log(`Pulled ${type} tokens from cache...`);
-        return cachedValue as Token[];
-      }
-
-      // Check 2: Latest Database entry within 5 mins
+      // Check 1: Latest Database entry within 5 mins
       const tokenList: TokenList = await this.findTokenList(type);
       const databaseValue = await this.verifyDatabaseTime(tokenList);
       if (databaseValue) {
@@ -66,7 +51,7 @@ export class TokensService {
         return databaseValue.tokens;
       }
 
-      // Check 3: Update Created At & Get new data, while returning existing data
+      // Check 2: Update Created At & Get new data, while returning existing data
       await this.updateTokenListCreatedAt();
       this.refreshTokensLists();
 
@@ -79,6 +64,7 @@ export class TokensService {
 
   // Called at /tokens/request
   async refreshTokensLists(): Promise<any> {
+    this.logger.log('Attempting to refresh token lists...');
     try {
       const { data } = await this.httpService
         .get('https://apeswap-strapi.herokuapp.com/home-v-2-token-lists')
@@ -114,10 +100,6 @@ export class TokensService {
       previousTokenData,
     );
 
-    // 3. Store ALL token data for the given chain in DB & cache
-    await this.cacheManager.set(`tokenLists-${chainId}`, filteredTokenData, {
-      ttl: 120,
-    });
     const tokenStorageResponse = await this.createTokenList({
       title: `all-${chainId}`,
       tokens: filteredTokenData,
@@ -137,10 +119,6 @@ export class TokensService {
           ),
         );
 
-        // Store each computed token list in cache & MongoDB
-        await this.cacheManager.set(`tokenList-${type}`, applicableTokens, {
-          ttl: 120,
-        });
         await this.createTokenList({
           title: type,
           tokens: applicableTokens,
@@ -149,7 +127,7 @@ export class TokensService {
     });
 
     this.logger.log(
-      `Refresh for chain ${chainId} complete. Data stored in cache & database`,
+      `Refresh for chain ${chainId} complete. Data stored in database`,
     );
     return tokenStorageResponse;
   }
@@ -235,8 +213,7 @@ export class TokensService {
     )?.logoURI;
   };
 
-  // Called if cache comes up expired and we're trying to check the database stats for /tvl or just /
-  async verifyDatabaseTime(data: any, time = 30000) {
+  async verifyDatabaseTime(data: any, time = 12000) {
     const now = Date.now();
 
     if (!data?.createdAt) return null;
