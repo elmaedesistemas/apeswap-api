@@ -46,6 +46,7 @@ import { GeneralStatsChain } from 'src/interfaces/stats/generalStatsChain.dto';
 import { TvlStats, TvlStatsDocument } from './schema/tvlStats.schema';
 import { ChainConfigService } from 'src/config/chain.configuration.service';
 import { BitqueryService } from 'src/bitquery/bitquery.service';
+import Multicall from '@dopex-io/web3-multicall';
 
 @Injectable()
 export class StatsService {
@@ -531,14 +532,12 @@ export class StatsService {
   }
 
   async calculatePoolInfo(masterApeContract) {
-    const poolCount = parseInt(
-      await masterApeContract.methods.poolLength().call(),
-      10,
-    );
+    // Uses single multicall
+    const farmInfo = await this.getAllFarmInfo(masterApeContract);
 
     return await Promise.all(
-      [...Array(poolCount).keys()].map(async (x) =>
-        this.getPoolInfo(masterApeContract, x),
+      [...Array(farmInfo.length).keys()].map(async (x) =>
+        this.getFarmInfo(farmInfo[x], x),
       ),
     );
   }
@@ -554,8 +553,36 @@ export class StatsService {
     return { totalAllocPoints, rewardsPerDay };
   }
 
-  async getPoolInfo(masterApeContract, poolIndex) {
-    const poolInfo = await masterApeContract.methods.poolInfo(poolIndex).call();
+  // Gets information from every farm pid in a single multicall
+  async getAllFarmInfo(masterApeContract) {
+    const multi = new Multicall({
+      chainId: 56,
+      provider: 'https://bsc-dataseed1.defibit.io:443',
+    });
+
+    const pidCount = parseInt(
+      await masterApeContract.methods.poolLength().call(),
+      10,
+    );
+
+    const allCalls = [...Array(pidCount).keys()].map((x) =>
+      masterApeContract.methods.poolInfo(x),
+    );
+
+    const farmInfo = await multi.aggregate([...allCalls]);
+
+    const filteredFarmInfo = farmInfo.map((farm) => {
+      return {
+        lpToken: farm[0],
+        allocPoint: farm[1],
+        lastRewardBlock: farm[2],
+      };
+    });
+
+    return filteredFarmInfo;
+  }
+
+  async getFarmInfo(poolInfo, poolIndex) {
     // Determine if Bep20 or Lp token
     const poolToken =
       poolIndex !== 0 &&
