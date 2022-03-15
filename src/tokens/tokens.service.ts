@@ -139,7 +139,6 @@ export class TokensService {
   async getRawTokenDataFromSubgraph(chainId: number): Promise<any> {
     let yesterdayBlock: number;
 
-    // TODO: Update previous block times to be more precise (particularly Polygon)
     if (chainId === 56) {
       yesterdayBlock = (await this.bscWeb3.eth.getBlockNumber()) - 28800;
     } else if (chainId === 137) {
