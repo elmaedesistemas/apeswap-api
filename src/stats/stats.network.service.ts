@@ -403,35 +403,4 @@ export class StatsNetworkService {
       return null;
     }
   }
-
-  async getHomepageNetworkFeatures(): Promise<any> {
-    const [farmDetails, poolDetails, lendingDetails] = [[], [], []];
-
-    try {
-      const { data: features } = await this.httpService
-        .get(`${this.STRAPI_URL}/home-v-2-features`)
-        .toPromise();
-
-      const { farms: featuredFarms, pools: featuredPools } = features[0];
-
-      const allStats = await this.getCalculateStatsNetwork(56);
-      const { farms, incentivizedPools: pools } = allStats;
-
-      featuredFarms.forEach((element) => {
-        farmDetails.push(farms.find(({ poolIndex }) => element === poolIndex));
-      });
-
-      featuredPools.forEach((element) => {
-        poolDetails.push(pools.find(({ id }) => element === id));
-      });
-
-      // TODO: Pull Lending Data
-
-      return { farmDetails, poolDetails, lendingDetails };
-    } catch (error) {
-      this.logger.error(
-        `Error when attempted to retrieve homepage featurs: ${error.message}`,
-      );
-    }
-  }
 }
