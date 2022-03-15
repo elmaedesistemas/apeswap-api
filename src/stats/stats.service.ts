@@ -231,11 +231,14 @@ export class StatsService {
 
       // Filter through farms on strapi, assign applicable values from stats
       featuredFarms.forEach((element) => {
-        const { name, address, poolIndex, apr } = farms.find(
+        const { name: farmName, address, poolIndex, apr } = farms.find(
           ({ poolIndex }) => element === poolIndex,
         );
+
+        // Format string to make harambe happy
+        const name = farmName.replace(/[\[\]]/g, '').slice(0, -3);
         farmDetails.push({
-          pid: poolIndex,
+          id: poolIndex,
           apr,
           stakeToken: { name, address },
           rewardToken: {
