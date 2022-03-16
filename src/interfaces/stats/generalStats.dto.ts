@@ -62,8 +62,15 @@ class YieldFarmingFeature {
   link: string;
 }
 
+class LendingFeature {
+  marketAddress: string;
+  apy: number;
+  token: any;
+  link: string;
+}
+
 export class HomepageFeatures {
   farmDetails: YieldFarmingFeature[];
   poolDetails: YieldFarmingFeature[];
-  lendingDetails: any[];
+  lendingDetails: LendingFeature[];
 }

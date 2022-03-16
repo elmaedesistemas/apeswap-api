@@ -24,6 +24,7 @@ import { multicall, multicallNetwork } from 'src/utils/lib/multicall';
 import {
   gBananaTreasury,
   masterApeContractWeb,
+  olaCompoundLensContractWeb3,
   bananaAddress,
   goldenBananaAddress,
   masterApeContractAddress,
@@ -221,13 +222,18 @@ export class StatsService {
 
   async getHomepageFeatures(): Promise<HomepageFeatures> {
     const [farmDetails, poolDetails, lendingDetails] = [[], [], []];
+    const olaCompoundLensContract = olaCompoundLensContractWeb3();
 
     try {
       const { data: features } = await this.httpService
         .get(`${this.STRAPI_URL}/home-v-2-features`)
         .toPromise();
 
-      const { farms: featuredFarms, pools: featuredPools } = features[0];
+      const {
+        farms: featuredFarms,
+        pools: featuredPools,
+        lending: featuredMarkets,
+      } = features[0];
 
       const allStats = await this.getAllStats();
       const { farms, incentivizedPools: pools } = allStats;
@@ -272,7 +278,48 @@ export class StatsService {
         });
       });
 
-      // TODO: Pull Lending Data
+      // Filter through markets to capture APYs
+      for (let i = 0; i < featuredMarkets.length; i++) {
+        const market = featuredMarkets[i];
+        const { type, marketContractAddress, name, tokenAddress } = market;
+
+        const cTokenData = await olaCompoundLensContract.methods
+          .cTokenMetadata(market.marketContractAddress)
+          .call();
+
+        lendingDetails.push({
+          marketName: type + ' ' + name,
+          marketAddress: marketContractAddress,
+          apy: 1,
+          token: { name, address: tokenAddress },
+          link: 'https://lending.apeswap.finance',
+        });
+      }
+
+      /*
+        From OLA, Calculating Compounds...
+        COMPOUNDS_PER_YEAR = 365
+        borrowRatePerBlockInUnits= 'borrowRatePerBlock' / e18
+        borrowApyInUnits = borrowRatePerBlockInUnits * blockPerYear (estimated 7632000 for BSC)
+
+        Calculation:
+        base = (borrowApyInUnits / COMPOUNDS_PER_YEAR) + 1
+        powered = Math.pow(base, COMPOUNDS_PER_YEAR)
+        apyPercentages = (powered - 1) * 100
+
+        TODO: Pull Lending Data
+        Read cTokenMetadata(token) --> gives interest in supplyRatePerBlock & borrowRatePerBlock
+        borrowRatePerBlock can calculate APR directly
+        supplyRatePerBlock cannot calculate APR directly
+        incentiveSupplySpeed --> How much BANANA per block is given to the whole market
+        totalSupply (8 decimals) --> total supply of C token
+        exchangeRateCurrent (underlying decimals of supplied asset + 10) --> convert token
+        totalTokensStaked = (totalSupply/10**8 * exchangeRateCurrent/)
+        use ethers library
+        totalBorrow is denominated in actual asset
+        cTokenUnderlyingPrice = (36 decimals - underlying) --> gives actual price
+        Need to accomodate the reserve factor
+      */
 
       return { farmDetails, poolDetails, lendingDetails };
     } catch (error) {

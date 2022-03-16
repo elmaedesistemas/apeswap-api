@@ -62,6 +62,7 @@ export default () => ({
       auction: '0xaeCB396Be7F19618Db4C44d8e2E8C908228515E9',
     },
     apePriceGetter: '0x5e545322b83626c745FE46144a15C00C94cBD803',
+    olaCompoundLens: '0x183019dc7a8f8f1456df735862761cccf2e23009',
     appNodes: [
       'https://rpc.ankr.com/erigonbsc',
       'https://bsc-dataseed.binance.org:443',

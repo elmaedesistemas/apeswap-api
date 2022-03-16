@@ -11,6 +11,7 @@ import { BEP20_REWARD_APE_ABI } from './abi/bep20RewardApeAbi';
 import { getBalanceNumber } from 'src/utils/math';
 import { multicallNetwork } from 'src/utils/lib/multicall';
 import { MINI_COMPLEX_REWARDER_ABI } from './abi/miniComplexRewarderAbi';
+import { OLA_LENS_ABI } from './abi/OlaCompoundLens';
 
 export const SECONDS_PER_YEAR = new BigNumber(31536000);
 // ADDRESS GETTERS
@@ -60,6 +61,14 @@ export function lendingAddress(): any {
 
 export function unitrollerAddress(): any {
   return configuration()[process.env.CHAIN_ID].unitroller;
+}
+
+export function olaCompoundLensAddress(): string {
+  return configuration()[process.env.CHAIN_ID].olaCompoundLens;
+}
+
+export function olaCompoundLensContractWeb3(): any {
+  return getContract(OLA_LENS_ABI, olaCompoundLensAddress());
 }
 
 export function getBananaPriceWithPoolList(poolList, prices) {
