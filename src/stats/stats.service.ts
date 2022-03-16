@@ -5,7 +5,6 @@ import {
   CACHE_MANAGER,
   Logger,
 } from '@nestjs/common';
-import { ethers } from 'ethers';
 import { InjectModel } from '@nestjs/mongoose';
 import {
   GeneralStats,
@@ -36,6 +35,7 @@ import {
   getWalletStatsForIncentivizedPools,
   lendingAddress,
   unitrollerAddress,
+  lendingMarkets,
 } from './utils/stats.utils';
 import { WalletStats } from 'src/interfaces/stats/walletStats.dto';
 import { WalletInvalidHttpException } from './exceptions/wallet-invalid.execption';
@@ -52,6 +52,8 @@ import { TvlStats, TvlStatsDocument } from './schema/tvlStats.schema';
 import { ChainConfigService } from 'src/config/chain.configuration.service';
 import { BitqueryService } from 'src/bitquery/bitquery.service';
 import Multicall from '@dopex-io/web3-multicall';
+import { calculateSupplyAndBorrowApys } from './utils/lendingUtils';
+import { LendingMarket } from 'src/interfaces/stats/lendingMarket.dto';
 
 @Injectable()
 export class StatsService {
@@ -221,76 +223,8 @@ export class StatsService {
     return farmPrices;
   }
 
-  calculateApysInOneFunction(
-    borrowRatePerBlock,
-    underlyingPrice,
-    underlyingDecimals,
-    totalSupply,
-    cTokenDecimals,
-    exchangeRateCurrent,
-    totalBorrows,
-    reserveFactorMantissa,
-  ): any {
-    // Preparations For borrow APY calculations
-    const borrowRateInUnits = parseFloat(
-      // Note : 'borrowRatePerBlock' is actually 'borrowRatePerSecond'
-      ethers.utils.formatUnits(borrowRatePerBlock),
-    );
-    // Note : Seconds in a year
-    const interestUnitsPerYear = 60 * 60 * 24 * 365;
-
-    const borrowAprInUnits = borrowRateInUnits * interestUnitsPerYear;
-
-    // Calculate the compounding borrow APY
-    const compoundsPerYear = 365;
-    const base = borrowAprInUnits / compoundsPerYear + 1;
-    const powered = Math.pow(base, compoundsPerYear);
-    const borrowApyInUnits = powered - 1;
-    const borrowApyInPercentages = borrowApyInUnits * 100;
-
-    // Preparations For Supply APY calculations
-    const underlyingUsdPrice = parseFloat(
-      ethers.utils.formatUnits(underlyingPrice, 36 - underlyingDecimals),
-    );
-    const cTokensInCirculation = parseFloat(
-      ethers.utils.formatUnits(totalSupply, cTokenDecimals),
-    );
-    const exchangeRateInUnits = parseFloat(
-      ethers.utils.formatUnits(
-        exchangeRateCurrent,
-        parseInt(underlyingDecimals) + 10,
-      ),
-    );
-    const totalSuppliedInUnits = cTokensInCirculation * exchangeRateInUnits;
-    const totalSupplyBalanceUsd = totalSuppliedInUnits * underlyingUsdPrice;
-
-    const totalBorrowedInUnits = parseFloat(
-      ethers.utils.formatUnits(totalBorrows, underlyingDecimals),
-    );
-    const reservesFactorInUnits = parseFloat(
-      ethers.utils.formatEther(reserveFactorMantissa),
-    );
-
-    const marketYearlySupplySideInterestUnitsWithCompounding =
-      borrowApyInPercentages *
-      totalBorrowedInUnits *
-      (1 - reservesFactorInUnits);
-
-    const marketYearlySupplySideInterestUsdWithCompounding =
-      marketYearlySupplySideInterestUnitsWithCompounding * underlyingUsdPrice;
-
-    const supplyApyInPercentages =
-      marketYearlySupplySideInterestUsdWithCompounding / totalSupplyBalanceUsd;
-
-    return {
-      borrowApyInPercentages,
-      supplyApyInPercentages,
-    };
-  }
-
   async getHomepageFeatures(): Promise<HomepageFeatures> {
     const [farmDetails, poolDetails, lendingDetails] = [[], [], []];
-    const olaCompoundLensContract = olaCompoundLensContractWeb3();
 
     try {
       const { data: features } = await this.httpService
@@ -304,7 +238,7 @@ export class StatsService {
       } = features[0];
 
       const allStats = await this.getAllStats();
-      const { farms, incentivizedPools: pools } = allStats;
+      const { farms, incentivizedPools: pools, lendingData } = allStats;
 
       // Filter through farms on strapi, assign applicable values from stats
       featuredFarms.forEach((element) => {
@@ -346,48 +280,33 @@ export class StatsService {
         });
       });
 
-      // Filter through markets to capture APYs
-      for (let i = 0; i < featuredMarkets.length; i++) {
-        const market = featuredMarkets[i];
+      // Filter through featured lending markets on endpoint
+      featuredMarkets.forEach((market) => {
+        let apy;
         const { type, marketContractAddress, name, tokenAddress } = market;
 
-        const {
-          borrowRatePerBlock,
-          underlyingDecimals,
-          totalSupply,
-          cTokenDecimals,
-          exchangeRateCurrent,
-          totalBorrows,
-          reserveFactorMantissa,
-        } = await olaCompoundLensContract.methods
-          .cTokenMetadata(marketContractAddress)
-          .call();
-
-        const {
-          underlyingPrice,
-        } = await olaCompoundLensContract.methods
-          .cTokenUnderlyingPrice(marketContractAddress)
-          .call();
-
-        const apys = this.calculateApysInOneFunction(
-          borrowRatePerBlock,
-          underlyingPrice,
-          underlyingDecimals,
-          totalSupply,
-          cTokenDecimals,
-          exchangeRateCurrent,
-          totalBorrows,
-          reserveFactorMantissa,
+        const marketData = lendingData.find(
+          ({ marketAddress }) =>
+            marketContractAddress.toUpperCase() == marketAddress.toUpperCase(),
         );
+
+        // TODO: Include distribution APYs
+        if (type.toUpperCase() === 'SUPPLY') {
+          apy = marketData.apys.supplyApyPercent;
+        } else if (type.toUpperCase() === 'BORROW') {
+          apy = marketData.apys.borrowApyPercent;
+        } else {
+          apy = 0;
+        }
 
         lendingDetails.push({
           marketName: type + ' ' + name,
           marketAddress: marketContractAddress,
-          apy: apys.supplyApyInPercentages,
+          apy,
           token: { name, address: tokenAddress },
           link: 'https://lending.apeswap.finance',
         });
-      }
+      });
 
       return { farmDetails, poolDetails, lendingDetails };
     } catch (error) {
@@ -395,6 +314,54 @@ export class StatsService {
         `Error when attempted to retrieve homepage featurs: ${error.message}`,
       );
     }
+  }
+
+  async getAllLendingMarketData(): Promise<LendingMarket[]> {
+    const lendingData: LendingMarket[] = [];
+    const allLendingMarkets = lendingMarkets();
+    const olaCompoundLensContract = olaCompoundLensContractWeb3();
+
+    for (let i = 0; i < allLendingMarkets.length; i++) {
+      const market = allLendingMarkets[i];
+      const { name, contract } = market;
+
+      const {
+        borrowRatePerBlock,
+        underlyingDecimals,
+        totalSupply,
+        cTokenDecimals,
+        exchangeRateCurrent,
+        totalBorrows,
+        reserveFactorMantissa,
+      } = await olaCompoundLensContract.methods.cTokenMetadata(contract).call();
+
+      const {
+        underlyingPrice,
+      } = await olaCompoundLensContract.methods
+        .cTokenUnderlyingPrice(contract)
+        .call();
+
+      const apys = calculateSupplyAndBorrowApys(
+        borrowRatePerBlock,
+        underlyingPrice,
+        underlyingDecimals,
+        totalSupply,
+        cTokenDecimals,
+        exchangeRateCurrent,
+        totalBorrows,
+        reserveFactorMantissa,
+      );
+
+      // TODO: Add Distribution (Rainmaker) APYs
+
+      lendingData.push({
+        name,
+        marketAddress: contract,
+        apys,
+      });
+    }
+
+    return lendingData;
   }
 
   // Function called on /stats/tvl endpoint
@@ -572,6 +539,8 @@ export class StatsService {
     this.logger.log(`Attempting to calculate general stats`);
     const masterApeContract = masterApeContractWeb();
 
+    const lendingData = await this.getAllLendingMarketData();
+
     const poolInfos = await this.calculatePoolInfo(masterApeContract);
 
     const [{ totalAllocPoints, rewardsPerDay }, prices] = await Promise.all([
@@ -616,6 +585,7 @@ export class StatsService {
       pools: [],
       farms: [],
       incentivizedPools: [],
+      lendingData,
     };
 
     for (let i = 0; i < poolInfos.length; i++) {

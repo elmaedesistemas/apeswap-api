@@ -66,6 +66,7 @@ export default () => ({
     appNodes: [
       'https://rpc.ankr.com/erigonbsc',
       'https://bsc-dataseed.binance.org:443',
+      'https://bscrpc.com/',
       // 'https://bsc-dataseed1.defibit.io:443',
       // 'https://bsc-dataseed1.ninicoin.io:443',
       // 'https://bsc-dataseed2.ninicoin.io:443',
@@ -78,6 +79,40 @@ export default () => ({
       'https://bsc-dataseed2.binance.org:443',
       'https://bsc-dataseed3.binance.org:443',
       'https://bsc-dataseed4.binance.org:443', */
+    ],
+    lendingMarkets: [
+      {
+        name: 'BTC',
+        contract: '0x5fce5D208DC325ff602c77497dC18F8EAdac8ADA',
+      },
+      {
+        name: 'ETH',
+        contract: '0xaA1b1E1f251610aE10E4D553b05C662e60992EEd',
+      },
+      {
+        name: 'BANANA',
+        contract: '0xC2E840BdD02B4a1d970C87A912D8576a7e61D314',
+      },
+      {
+        name: 'BUSD',
+        contract: '0x0096B6B49D13b347033438c4a699df3Afd9d2f96',
+      },
+      {
+        name: 'USDT',
+        contract: '0xdBFd516D42743CA3f1C555311F7846095D85F6Fd',
+      },
+      {
+        name: 'USDC',
+        contract: '0x91B66a9Ef4f4CAD7F8AF942855C37Dd53520f151',
+      },
+      {
+        name: 'CAKE',
+        contract: '0x3353f5bcfD7E4b146F2eD8F1e8D875733Cd754a7',
+      },
+      {
+        name: 'BNB',
+        contract: '0x34878F6a484005AA90E7188a546Ea9E52b538F6f',
+      },
     ],
     iazoExposer: '0xFdfb230bFa399EC32EA8e98c2E7E3CcD953C860A',
     lending: '0xCc7aaC69015a7645dfC39ddEB5902ca9FC0Bc15C',

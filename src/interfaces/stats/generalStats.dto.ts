@@ -3,6 +3,7 @@ import { Validate } from 'class-validator';
 import { OnlyNetwork } from 'src/utils/validator/onlyNetwork';
 import { FarmStatsDto } from './farm.dto';
 import { IncentivizedPoolStats } from './incentivizedPool.dto';
+import { LendingMarket } from './lendingMarket.dto';
 import { PoolStats } from './pool.dto';
 
 export class GeneralStats {
@@ -21,6 +22,7 @@ export class GeneralStats {
   pools: PoolStats[];
   farms: FarmStatsDto[];
   incentivizedPools: IncentivizedPoolStats[];
+  lendingData?: LendingMarket[];
 }
 
 export class GeneralStatsNetworkDto {
@@ -37,6 +39,7 @@ export class GeneralStatsNetworkDto {
   pools?: PoolStats[];
   farms?: FarmStatsDto[];
   incentivizedPools: IncentivizedPoolStats[];
+  lendingData?: LendingMarket[];
 }
 
 export class ChainIdDto {
