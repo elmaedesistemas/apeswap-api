@@ -5,6 +5,7 @@ import {
   CACHE_MANAGER,
   Logger,
 } from '@nestjs/common';
+import { ethers } from 'ethers';
 import { InjectModel } from '@nestjs/mongoose';
 import {
   GeneralStats,
@@ -220,6 +221,73 @@ export class StatsService {
     return farmPrices;
   }
 
+  calculateApysInOneFunction(
+    borrowRatePerBlock,
+    underlyingPrice,
+    underlyingDecimals,
+    totalSupply,
+    cTokenDecimals,
+    exchangeRateCurrent,
+    totalBorrows,
+    reserveFactorMantissa,
+  ): any {
+    // Preparations For borrow APY calculations
+    const borrowRateInUnits = parseFloat(
+      // Note : 'borrowRatePerBlock' is actually 'borrowRatePerSecond'
+      ethers.utils.formatUnits(borrowRatePerBlock),
+    );
+    // Note : Seconds in a year
+    const interestUnitsPerYear = 60 * 60 * 24 * 365;
+
+    const borrowAprInUnits = borrowRateInUnits * interestUnitsPerYear;
+
+    // Calculate the compounding borrow APY
+    const compoundsPerYear = 365;
+    const base = borrowAprInUnits / compoundsPerYear + 1;
+    const powered = Math.pow(base, compoundsPerYear);
+    const borrowApyInUnits = powered - 1;
+    const borrowApyInPercentages = borrowApyInUnits * 100;
+
+    // Preparations For Supply APY calculations
+    const underlyingUsdPrice = parseFloat(
+      ethers.utils.formatUnits(underlyingPrice, 36 - underlyingDecimals),
+    );
+    const cTokensInCirculation = parseFloat(
+      ethers.utils.formatUnits(totalSupply, cTokenDecimals),
+    );
+    const exchangeRateInUnits = parseFloat(
+      ethers.utils.formatUnits(
+        exchangeRateCurrent,
+        parseInt(underlyingDecimals) + 10,
+      ),
+    );
+    const totalSuppliedInUnits = cTokensInCirculation * exchangeRateInUnits;
+    const totalSupplyBalanceUsd = totalSuppliedInUnits * underlyingUsdPrice;
+
+    const totalBorrowedInUnits = parseFloat(
+      ethers.utils.formatUnits(totalBorrows, underlyingDecimals),
+    );
+    const reservesFactorInUnits = parseFloat(
+      ethers.utils.formatEther(reserveFactorMantissa),
+    );
+
+    const marketYearlySupplySideInterestUnitsWithCompounding =
+      borrowApyInPercentages *
+      totalBorrowedInUnits *
+      (1 - reservesFactorInUnits);
+
+    const marketYearlySupplySideInterestUsdWithCompounding =
+      marketYearlySupplySideInterestUnitsWithCompounding * underlyingUsdPrice;
+
+    const supplyApyInPercentages =
+      marketYearlySupplySideInterestUsdWithCompounding / totalSupplyBalanceUsd;
+
+    return {
+      borrowApyInPercentages,
+      supplyApyInPercentages,
+    };
+  }
+
   async getHomepageFeatures(): Promise<HomepageFeatures> {
     const [farmDetails, poolDetails, lendingDetails] = [[], [], []];
     const olaCompoundLensContract = olaCompoundLensContractWeb3();
@@ -283,43 +351,43 @@ export class StatsService {
         const market = featuredMarkets[i];
         const { type, marketContractAddress, name, tokenAddress } = market;
 
-        const cTokenData = await olaCompoundLensContract.methods
-          .cTokenMetadata(market.marketContractAddress)
+        const {
+          borrowRatePerBlock,
+          underlyingDecimals,
+          totalSupply,
+          cTokenDecimals,
+          exchangeRateCurrent,
+          totalBorrows,
+          reserveFactorMantissa,
+        } = await olaCompoundLensContract.methods
+          .cTokenMetadata(marketContractAddress)
           .call();
+
+        const {
+          underlyingPrice,
+        } = await olaCompoundLensContract.methods
+          .cTokenUnderlyingPrice(marketContractAddress)
+          .call();
+
+        const apys = this.calculateApysInOneFunction(
+          borrowRatePerBlock,
+          underlyingPrice,
+          underlyingDecimals,
+          totalSupply,
+          cTokenDecimals,
+          exchangeRateCurrent,
+          totalBorrows,
+          reserveFactorMantissa,
+        );
 
         lendingDetails.push({
           marketName: type + ' ' + name,
           marketAddress: marketContractAddress,
-          apy: 1,
+          apy: apys.supplyApyInPercentages,
           token: { name, address: tokenAddress },
           link: 'https://lending.apeswap.finance',
         });
       }
-
-      /*
-        From OLA, Calculating Compounds...
-        COMPOUNDS_PER_YEAR = 365
-        borrowRatePerBlockInUnits= 'borrowRatePerBlock' / e18
-        borrowApyInUnits = borrowRatePerBlockInUnits * blockPerYear (estimated 7632000 for BSC)
-
-        Calculation:
-        base = (borrowApyInUnits / COMPOUNDS_PER_YEAR) + 1
-        powered = Math.pow(base, COMPOUNDS_PER_YEAR)
-        apyPercentages = (powered - 1) * 100
-
-        TODO: Pull Lending Data
-        Read cTokenMetadata(token) --> gives interest in supplyRatePerBlock & borrowRatePerBlock
-        borrowRatePerBlock can calculate APR directly
-        supplyRatePerBlock cannot calculate APR directly
-        incentiveSupplySpeed --> How much BANANA per block is given to the whole market
-        totalSupply (8 decimals) --> total supply of C token
-        exchangeRateCurrent (underlying decimals of supplied asset + 10) --> convert token
-        totalTokensStaked = (totalSupply/10**8 * exchangeRateCurrent/)
-        use ethers library
-        totalBorrow is denominated in actual asset
-        cTokenUnderlyingPrice = (36 decimals - underlying) --> gives actual price
-        Need to accomodate the reserve factor
-      */
 
       return { farmDetails, poolDetails, lendingDetails };
     } catch (error) {
