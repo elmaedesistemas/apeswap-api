@@ -6,7 +6,10 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { GeneralStats } from 'src/interfaces/stats/generalStats.dto';
+import {
+  GeneralStats,
+  HomepageFeatures,
+} from 'src/interfaces/stats/generalStats.dto';
 import { Cache } from 'cache-manager';
 import { PriceService } from './price.service';
 import { LP_ABI } from './utils/abi/lpAbi';
@@ -216,7 +219,7 @@ export class StatsService {
     return farmPrices;
   }
 
-  async getHomepageFeatures(): Promise<any> {
+  async getHomepageFeatures(): Promise<HomepageFeatures> {
     const [farmDetails, poolDetails, lendingDetails] = [[], [], []];
 
     try {
@@ -557,7 +560,7 @@ export class StatsService {
   }
 
   // Gets information from every farm pid in a single multicall
-  async getAllFarmInfo(masterApeContract) {
+  async getAllFarmInfo(masterApeContract): Promise<any> {
     const multi = new Multicall({
       chainId: 56,
       provider: 'https://bsc-dataseed1.defibit.io:443',

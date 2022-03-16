@@ -5,3 +5,9 @@ export class Token {
   contractAddress: string;
   logoUrl: string;
 }
+
+export class StrapiTokensObject {
+  type: string;
+  chain: number;
+  tokens: string[];
+}

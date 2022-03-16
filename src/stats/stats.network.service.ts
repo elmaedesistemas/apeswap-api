@@ -7,7 +7,10 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { GeneralStatsNetworkDto } from 'src/interfaces/stats/generalStats.dto';
+import {
+  GeneralStatsNetworkDto,
+  ApeLpApr,
+} from 'src/interfaces/stats/generalStats.dto';
 import { Cache } from 'cache-manager';
 import { PriceService } from './price.service';
 import {
@@ -375,7 +378,7 @@ export class StatsNetworkService {
     });
   }
 
-  async getLpAprs(): Promise<any> {
+  async getLpAprs(): Promise<ApeLpApr[]> {
     try {
       const bscNetworkStatsData = await this.getCalculateStatsNetwork(56);
       const polygonNetworkStatsData = await this.getCalculateStatsNetwork(137);

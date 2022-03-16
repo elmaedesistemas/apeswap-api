@@ -5,7 +5,7 @@ import { SubgraphService } from '../stats/subgraph.service';
 import { ChainConfigService } from 'src/config/chain.configuration.service';
 import { TokenList, TokenListDocument } from './schema/tokenList.schema';
 import { getWeb3 } from 'src/utils/lib/web3';
-import { Token } from 'src/interfaces/tokens/token.dto';
+import { StrapiTokensObject, Token } from 'src/interfaces/tokens/token.dto';
 
 @Injectable()
 export class TokensService {
@@ -64,7 +64,7 @@ export class TokensService {
   }
 
   // Called at /tokens/request
-  async refreshTokensLists(): Promise<any> {
+  async refreshTokensLists(): Promise<string> {
     this.logger.log('Attempting to refresh token lists...');
     try {
       const { data } = await this.httpService
@@ -87,8 +87,8 @@ export class TokensService {
 
   async processTokensFromSubgraphData(
     chainId: number,
-    tokenListConfig: any,
-  ): Promise<any> {
+    tokenListConfig: StrapiTokensObject[],
+  ): Promise<TokenList[]> {
     // 1. Get raw token data from subgraph, both now & 24 hours ago
     const {
       currentTokenData,
@@ -153,6 +153,8 @@ export class TokensService {
         .toPromise();
 
       yesterdayBlock = result;
+    } else {
+      throw 'Invalid chain Id';
     }
 
     const currentTokenData = await this.subgraphService.getTopTokensData(

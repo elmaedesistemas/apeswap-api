@@ -43,3 +43,27 @@ export class ChainIdDto {
   @Validate(OnlyNetwork)
   chainId: number;
 }
+
+class LpApr {
+  pid: number;
+  lpApr: number;
+}
+
+export class ApeLpApr {
+  chainId: number;
+  lpAprs: LpApr[];
+}
+
+class YieldFarmingFeature {
+  id: number;
+  apr: number;
+  stakeToken: any;
+  rewardToken: any;
+  link: string;
+}
+
+export class HomepageFeatures {
+  farmDetails: YieldFarmingFeature[];
+  poolDetails: YieldFarmingFeature[];
+  lendingDetails: any[];
+}
