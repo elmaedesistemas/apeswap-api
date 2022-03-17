@@ -21,6 +21,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@dopex-io/web3-multicall": "^0.1.6",
     "@ethersproject/abi": "^5.0.7",
     "@nestjs/common": "^7.5.1",
     "@nestjs/config": "^0.6.3",
@@ -28,6 +29,7 @@
     "@nestjs/mongoose": "^7.2.3",
     "@nestjs/platform-express": "^7.5.1",
     "@nestjs/schedule": "^0.4.2",
+    "@nestjs/swagger": "4.8.2",
     "@nextnm/nestjs-mailgun": "^1.1.1",
     "@sentry/node": "^5.9.0",
     "@types/pg": "^8.6.0",
@@ -45,10 +47,9 @@
     "reflect-metadata": "^0.1.13",
     "rimraf": "^3.0.2",
     "rxjs": "^6.6.3",
-    "@nestjs/swagger": "4.8.2",
-    "swagger-ui-express": "^4.1.6",
     "sleep-promise": "^9.1.0",
     "streamifier": "^0.1.1",
+    "swagger-ui-express": "^4.1.6",
     "web3": "^1.4.0"
   },
   "devDependencies": {

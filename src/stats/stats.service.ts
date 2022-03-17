@@ -6,7 +6,10 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { GeneralStats } from 'src/interfaces/stats/generalStats.dto';
+import {
+  GeneralStats,
+  HomepageFeatures,
+} from 'src/interfaces/stats/generalStats.dto';
 import { Cache } from 'cache-manager';
 import { PriceService } from './price.service';
 import { LP_ABI } from './utils/abi/lpAbi';
@@ -21,6 +24,7 @@ import { multicall, multicallNetwork } from 'src/utils/lib/multicall';
 import {
   gBananaTreasury,
   masterApeContractWeb,
+  olaCompoundLensContractWeb3,
   bananaAddress,
   goldenBananaAddress,
   masterApeContractAddress,
@@ -31,6 +35,7 @@ import {
   getWalletStatsForIncentivizedPools,
   lendingAddress,
   unitrollerAddress,
+  lendingMarkets,
 } from './utils/stats.utils';
 import { WalletStats } from 'src/interfaces/stats/walletStats.dto';
 import { WalletInvalidHttpException } from './exceptions/wallet-invalid.execption';
@@ -46,12 +51,16 @@ import { GeneralStatsChain } from 'src/interfaces/stats/generalStatsChain.dto';
 import { TvlStats, TvlStatsDocument } from './schema/tvlStats.schema';
 import { ChainConfigService } from 'src/config/chain.configuration.service';
 import { BitqueryService } from 'src/bitquery/bitquery.service';
+import Multicall from '@dopex-io/web3-multicall';
+import { calculateSupplyAndBorrowApys } from './utils/lendingUtils';
+import { LendingMarket } from 'src/interfaces/stats/lendingMarket.dto';
 
 @Injectable()
 export class StatsService {
   private readonly logger = new Logger(StatsService.name);
   private readonly chainId = parseInt(process.env.CHAIN_ID);
   private readonly POOL_LIST_URL = process.env.POOL_LIST_URL;
+  private readonly STRAPI_URL = process.env.APESWAP_STRAPI_URL;
 
   constructor(
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
@@ -128,20 +137,27 @@ export class StatsService {
     return this.generalStatsModel.deleteMany();
   }
 
+  // Called if cache comes up expired and we're trying to check the database stats for /tvl or just /
   async verifyStats(model) {
     const now = Date.now();
+
+    // Get stats for general or tvl, depending on the case in which you run this function
     const stats: any =
       model === 'general'
         ? await this.findGeneralStats()
         : await this.findTvlStats();
+
+    // If there is no 'createdAt' in the response, we consider it broken and return null for calling function to reject.
     if (!stats?.createdAt) return null;
 
+    // If the last DB creation was created greater than 5 mins ago, reject.
     const lastCreatedAt = new Date(stats.createdAt).getTime();
     const diff = now - lastCreatedAt;
     const time = 300000; // 5 minutes
-
     if (diff > time) return null;
 
+    // If a response is returned and the response is less than 5 minutes prior,
+    // use stats you got from one of the functions above.
     return stats;
   }
 
@@ -207,59 +223,235 @@ export class StatsService {
     return farmPrices;
   }
 
+  async getHomepageFeatures(): Promise<HomepageFeatures> {
+    const [farmDetails, poolDetails, lendingDetails] = [[], [], []];
+
+    try {
+      const { data: features } = await this.httpService
+        .get(`${this.STRAPI_URL}/home-v-2-features`)
+        .toPromise();
+
+      const {
+        farms: featuredFarms,
+        pools: featuredPools,
+        lending: featuredMarkets,
+      } = features[0];
+
+      const allStats = await this.getAllStats();
+      const { farms, incentivizedPools: pools, lendingData } = allStats;
+
+      // Filter through farms on strapi, assign applicable values from stats
+      featuredFarms.forEach((element) => {
+        const { name: farmName, address, poolIndex, apr } = farms.find(
+          ({ poolIndex }) => element === poolIndex,
+        );
+
+        // Format string to make harambe happy
+        const name = farmName.replace(/[\[\]]/g, '').slice(0, -3);
+        farmDetails.push({
+          id: poolIndex,
+          apr,
+          stakeToken: { name, address },
+          rewardToken: {
+            name: 'BANANA',
+            address: '0x603c7f932ed1fc6575303d8fb018fdcbb0f39a95',
+          },
+          link: 'https://apeswap.finance/farms',
+        });
+      });
+
+      // Filter through pools on strapi endpoint, assign applicable values from stats
+      featuredPools.forEach((element) => {
+        const {
+          id,
+          apr,
+          name,
+          rewardTokenAddress,
+          stakedTokenAddress,
+          rewardTokenSymbol,
+        } = pools.find(({ id }) => element === id);
+
+        poolDetails.push({
+          id,
+          apr,
+          stakeToken: { name, address: stakedTokenAddress },
+          rewardToken: { name: rewardTokenSymbol, address: rewardTokenAddress },
+          link: 'https://apeswap.finance/pools',
+        });
+      });
+
+      // Filter through featured lending markets on endpoint
+      featuredMarkets.forEach((market) => {
+        let apy;
+        const { type, marketContractAddress, name, tokenAddress } = market;
+
+        const marketData = lendingData.find(
+          ({ marketAddress }) =>
+            marketContractAddress.toUpperCase() == marketAddress.toUpperCase(),
+        );
+
+        // TODO: Include distribution APYs
+        if (type.toUpperCase() === 'SUPPLY') {
+          apy = marketData.apys.supplyApyPercent;
+        } else if (type.toUpperCase() === 'BORROW') {
+          apy = marketData.apys.borrowApyPercent;
+        } else {
+          apy = 0;
+        }
+
+        lendingDetails.push({
+          marketName: type + ' ' + name,
+          marketAddress: marketContractAddress,
+          apy,
+          token: { name, address: tokenAddress },
+          link: 'https://lending.apeswap.finance',
+        });
+      });
+
+      return { farmDetails, poolDetails, lendingDetails };
+    } catch (error) {
+      this.logger.error(
+        `Error when attempted to retrieve homepage featurs: ${error.message}`,
+      );
+    }
+  }
+
+  async getAllLendingMarketData(): Promise<LendingMarket[]> {
+    const lendingData: LendingMarket[] = [];
+    const allLendingMarkets = lendingMarkets();
+    const olaCompoundLensContract = olaCompoundLensContractWeb3();
+
+    for (let i = 0; i < allLendingMarkets.length; i++) {
+      const market = allLendingMarkets[i];
+      const { name, contract } = market;
+
+      const {
+        borrowRatePerBlock,
+        underlyingDecimals,
+        totalSupply,
+        cTokenDecimals,
+        exchangeRateCurrent,
+        totalBorrows,
+        reserveFactorMantissa,
+      } = await olaCompoundLensContract.methods.cTokenMetadata(contract).call();
+
+      const {
+        underlyingPrice,
+      } = await olaCompoundLensContract.methods
+        .cTokenUnderlyingPrice(contract)
+        .call();
+
+      const apys = calculateSupplyAndBorrowApys(
+        borrowRatePerBlock,
+        underlyingPrice,
+        underlyingDecimals,
+        totalSupply,
+        cTokenDecimals,
+        exchangeRateCurrent,
+        totalBorrows,
+        reserveFactorMantissa,
+      );
+
+      // TODO: Add Distribution (Rainmaker) APYs
+
+      lendingData.push({
+        name,
+        marketAddress: contract,
+        apys,
+      });
+    }
+
+    return lendingData;
+  }
+
+  // Function called on /stats/tvl endpoint
   async getTvlStats(): Promise<GeneralStatsChain> {
     try {
+      // FIRST CHECK: Cache
+      // checks to see if there is a chancedValue at 'calculateTVLStats'. If there is one, console log a note & return it.
       const cachedValue = await this.cacheManager.get('calculateTVLStats');
       if (cachedValue) {
-        this.logger.log('Hit getTvlStats() cache');
+        this.logger.log('Pulling TVL stats from cache...');
         return cachedValue as GeneralStatsChain;
       }
-      const infoTvlStats = await this.verifyStats('tvl');
-      if (infoTvlStats) return infoTvlStats;
+
+      // SECOND CHECK: Database
+      // In the case the cache is expired, call the verifyStats('tvl') function, which checks the database.
+      // If valid, return that for stats.
+      const databaseValue = await this.verifyStats('tvl');
+      if (databaseValue) {
+        this.logger.log('Pulling TVL stats from database entry...');
+        return databaseValue;
+      }
+
+      // THIRD CHECK: Get new stats
+
+      // If the cache and database checks fail, we do the following:
+      // 1. Update createdAt time in the database for the tvlstats collection document
+      // This is because if we get multiple requests
       await this.updateTvlCreatedAtStats();
+
+      // 2. Start processessing an updated version of the tvlstats document
+      // This function updates the cache and database.
       this.calculateTvlStats();
+
+      // 3. Go ahead and query the database and return the most recent version we have.
       const tvl: any = await this.findTvlStats();
       return tvl;
     } catch (e) {
-      this.logger.error('Something went wrong calculating stats');
+      this.logger.error('Something went wrong calculating stats.');
       console.log(e);
     }
   }
 
+  // Function called to get updated TVL stats
   async calculateTvlStats() {
-    const [
-      lendingTvl,
-      polygonTvl,
-      bscTvl,
-      { burntAmount, totalSupply, circulatingSupply },
-      prices,
-      { circulatingSupply: gnanaCirculatingSupply },
-    ] = await Promise.all([
-      this.getLendingTvl(),
-      this.subgraphService.getLiquidityPolygonData(),
-      this.subgraphService.getVolumeData(),
-      this.getBurnAndSupply(),
-      this.priceService.getTokenPrices(),
-      this.getGnanaSupply(),
-    ]);
-    const priceUSD = prices[bananaAddress()].usd;
-    const poolsTvlBsc = await this.getTvlBsc();
-    const tvl: GeneralStatsChain = {
-      tvl: polygonTvl.liquidity + bscTvl.liquidity + poolsTvlBsc + lendingTvl,
-      totalLiquidity: polygonTvl.liquidity + bscTvl.liquidity,
-      totalVolume: polygonTvl.totalVolume + bscTvl.totalVolume,
-      bsc: bscTvl,
-      polygon: polygonTvl,
-      burntAmount,
-      totalSupply,
-      circulatingSupply,
-      marketCap: circulatingSupply * priceUSD,
-      gnanaCirculatingSupply,
-      lendingTvl,
-    };
-    await this.cacheManager.set('calculateTVLStats', tvl, { ttl: 120 });
-    await this.createTvlStats(tvl);
-    return tvl;
+    try {
+      this.logger.log('Attemping to generate new TVL Stats...');
+      const [
+        lendingTvl,
+        polygonTvl,
+        bscTvl,
+        { burntAmount, totalSupply, circulatingSupply },
+        prices,
+        { circulatingSupply: gnanaCirculatingSupply },
+        partnerCount,
+      ] = await Promise.all([
+        this.getLendingTvl(),
+        this.subgraphService.getLiquidityPolygonData(),
+        this.subgraphService.getVolumeData(),
+        this.getBurnAndSupply(),
+        this.priceService.getTokenPrices(),
+        this.getGnanaSupply(),
+        this.getPartnerCount(),
+      ]);
+      const priceUSD = prices[bananaAddress()].usd;
+      const poolsTvlBsc = await this.getTvlBsc();
+      const tvl: GeneralStatsChain = {
+        tvl: polygonTvl.liquidity + bscTvl.liquidity + poolsTvlBsc + lendingTvl,
+        totalLiquidity: polygonTvl.liquidity + bscTvl.liquidity,
+        totalVolume: polygonTvl.totalVolume + bscTvl.totalVolume,
+        bsc: bscTvl,
+        polygon: polygonTvl,
+        burntAmount,
+        totalSupply,
+        circulatingSupply,
+        marketCap: circulatingSupply * priceUSD,
+        gnanaCirculatingSupply,
+        lendingTvl,
+        partnerCount,
+      };
+      // Stored in cache at 'calculateTVLStats', with an expiration value of 2 minutes (120 seconds)
+      await this.cacheManager.set('calculateTVLStats', tvl, { ttl: 120 });
+      await this.createTvlStats(tvl);
+
+      this.logger.log('Successfully generated new TVL stats.');
+      return tvl;
+    } catch (error) {
+      this.logger.error(
+        `Failed to generate new TVL stats, error: ${error.message}`,
+      );
+    }
   }
 
   async getTvlBsc() {
@@ -344,7 +536,10 @@ export class StatsService {
   }
 
   async calculateStats() {
+    this.logger.log(`Attempting to calculate general stats`);
     const masterApeContract = masterApeContractWeb();
+
+    const lendingData = await this.getAllLendingMarketData();
 
     const poolInfos = await this.calculatePoolInfo(masterApeContract);
 
@@ -390,6 +585,7 @@ export class StatsService {
       pools: [],
       farms: [],
       incentivizedPools: [],
+      lendingData,
     };
 
     for (let i = 0; i < poolInfos.length; i++) {
@@ -427,14 +623,12 @@ export class StatsService {
   }
 
   async calculatePoolInfo(masterApeContract) {
-    const poolCount = parseInt(
-      await masterApeContract.methods.poolLength().call(),
-      10,
-    );
+    // Uses single multicall
+    const farmInfo = await this.getAllFarmInfo(masterApeContract);
 
     return await Promise.all(
-      [...Array(poolCount).keys()].map(async (x) =>
-        this.getPoolInfo(masterApeContract, x),
+      [...Array(farmInfo.length).keys()].map(async (x) =>
+        this.getFarmInfo(farmInfo[x], x),
       ),
     );
   }
@@ -450,14 +644,43 @@ export class StatsService {
     return { totalAllocPoints, rewardsPerDay };
   }
 
-  async getPoolInfo(masterApeContract, poolIndex) {
-    const poolInfo = await masterApeContract.methods.poolInfo(poolIndex).call();
+  // Gets information from every farm pid in a single multicall
+  async getAllFarmInfo(masterApeContract): Promise<any> {
+    const multi = new Multicall({
+      chainId: 56,
+      provider: 'https://bsc-dataseed1.defibit.io:443',
+    });
+
+    const pidCount = parseInt(
+      await masterApeContract.methods.poolLength().call(),
+      10,
+    );
+
+    const allCalls = [...Array(pidCount).keys()].map((x) =>
+      masterApeContract.methods.poolInfo(x),
+    );
+
+    const farmInfo = await multi.aggregate([...allCalls]);
+
+    const filteredFarmInfo = farmInfo.map((farm) => {
+      return {
+        lpToken: farm[0],
+        allocPoint: farm[1],
+        lastRewardBlock: farm[2],
+      };
+    });
+
+    return filteredFarmInfo;
+  }
+
+  async getFarmInfo(poolInfo, poolIndex) {
     // Determine if Bep20 or Lp token
     const poolToken =
       poolIndex !== 0 &&
       poolIndex !== 75 &&
       poolIndex !== 112 &&
-      poolIndex !== 162
+      poolIndex !== 162 &&
+      poolIndex !== 190
         ? await this.getLpInfo(poolInfo.lpToken, masterApeContractAddress())
         : await this.getTokenInfo(poolInfo.lpToken, masterApeContractAddress());
 
@@ -624,7 +847,7 @@ export class StatsService {
           name: 'totalSupply',
         },
       ],
-      chainId
+      chainId,
     );
     const burntAmount = burned / 10 ** decimals;
     const totalSupply = supply / 10 ** decimals;
@@ -1033,5 +1256,18 @@ export class StatsService {
       console.log(error);
     }
     return tvl;
+  }
+
+  // Gets the count of partners based on the partner-counts strapi endpoint
+  async getPartnerCount() {
+    try {
+      const { data } = await this.httpService
+        .get(`${this.STRAPI_URL}/partner-counts`)
+        .toPromise();
+
+      return data[0].count;
+    } catch (error) {
+      this.logger.error(error.message);
+    }
   }
 }
