@@ -44,6 +44,9 @@ export class GeneralStats {
   @Prop({ required: true })
   incentivizedPools: [];
 
+  @Prop({ required: false })
+  lendingData: [];
+
   @Prop({ default: Date.now })
   createdAt: Date;
 }
