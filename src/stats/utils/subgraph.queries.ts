@@ -143,3 +143,149 @@ export const allPricesQuery = `{
     }
   }
 }`;
+
+export const ETH_PRICE = (block?: number) => {
+  const queryString = block
+    ? `
+    query bundles {
+      bundles(where: { id:1 } block: {number: ${block}}) {
+        id
+        ethPrice
+      }
+    }
+  `
+    : ` query bundles {
+      bundles(where: { id:1 }) {
+        id
+        ethPrice
+      }
+    }
+  `;
+  return queryString;
+};
+
+export const GET_BLOCK = (timestampFrom, timestampTo) => `
+  {
+    blocks(
+      first: 1
+      orderBy: timestamp
+      orderDirection: asc
+      where: { timestamp_gt: ${timestampFrom}, timestamp_lt: ${timestampTo} }
+    ) {
+      id
+      number
+      timestamp
+    }
+  }
+`;
+export const GET_BLOCKS = (timestamps) => {
+  let queryString = 'query blocks {';
+  queryString += timestamps.map((timestamp) => {
+    return `t${timestamp}:blocks(first: 1, orderBy: timestamp, orderDirection: desc, where: { timestamp_gt: ${timestamp}, timestamp_lt: ${
+      timestamp + 600
+    } }) {
+      number
+    }`;
+  });
+  queryString += '}';
+  return queryString;
+};
+
+export const PAIRS_BULK = (pairs) => {
+  let queryString = `{
+    pairs(
+      where: {id_in: [`;
+  queryString += pairs.map((p) => `"${p.toLowerCase()}",`);
+  queryString = queryString.slice(0, -1);
+  queryString += `]}
+  orderBy: trackedReserveETH
+  orderDirection: desc
+) {
+  id
+  txCount
+  token0 {
+    id
+    symbol
+    name
+    totalLiquidity
+    derivedETH
+  }
+  token1 {
+    id
+    symbol
+    name
+    totalLiquidity
+    derivedETH
+  }
+  reserve0
+  reserve1
+  reserveUSD
+  totalSupply
+  trackedReserveETH
+  reserveETH
+  volumeUSD
+  untrackedVolumeUSD
+  token0Price
+  token1Price
+  createdAtTimestamp
+}
+}`;
+  return queryString;
+};
+
+export const PAIRS_HISTORICAL_BULK = (block, pairs) => {
+  let pairsString = `[`;
+  pairs.map((pair) => {
+    return (pairsString += `"${pair}"`);
+  });
+  pairsString += ']';
+  const queryString = `
+  query pairs {
+    pairs(first: 200, where: {id_in: ${pairsString}}, block: {number: ${block}}, orderBy: trackedReserveETH, orderDirection: desc) {
+      id
+      reserveUSD
+      trackedReserveETH
+      volumeUSD
+      untrackedVolumeUSD
+    }
+  }
+  `;
+  return queryString;
+};
+
+export const PAIR_DATA = (pairAddress, block) => {
+  return `
+    {
+      pairs(${
+        block ? `block: {number: ${block}}` : ``
+      } where: { id: "${pairAddress}"} ) {
+        id
+    txCount
+    token0 {
+      id
+      symbol
+      name
+      totalLiquidity
+      derivedETH
+    }
+    token1 {
+      id
+      symbol
+      name
+      totalLiquidity
+      derivedETH
+    }
+    reserve0
+    reserve1
+    reserveUSD
+    totalSupply
+    trackedReserveETH
+    reserveETH
+    volumeUSD
+    untrackedVolumeUSD
+    token0Price
+    token1Price
+    createdAtTimestamp
+      }
+    }`;
+};

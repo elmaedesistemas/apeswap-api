@@ -31,6 +31,7 @@ import { ChainConfigService } from 'src/config/chain.configuration.service';
 import { getContractNetwork } from 'src/utils/lib/web3';
 import { BitqueryService } from 'src/bitquery/bitquery.service';
 import { FarmStatsDto } from 'src/interfaces/stats/farm.dto';
+import { SubgraphService } from './subgraph.service';
 
 @Injectable()
 export class StatsNetworkService {
@@ -48,6 +49,7 @@ export class StatsNetworkService {
     private statsService: StatsService,
     private configService: ChainConfigService,
     private bitqueryService: BitqueryService,
+    private subgraphService: SubgraphService,
   ) {}
 
   createGeneralStats(stats, filter) {
@@ -343,6 +345,17 @@ export class StatsNetworkService {
       );
       volumesList = [...volumesList, ...volumes];
       balanceList = [...balanceList, ...balance];
+    }
+    if (volumesList.length === 0) {
+      this.logger.log('Calculating from the subgraph');
+      for (let index = 0; index < listAddresses.length; index++) {
+        const list = listAddresses[index];
+        const volumes = await this.subgraphService.getBulkPairData(
+          list,
+          chainId,
+        );
+        volumesList = [...volumesList, ...volumes];
+      }
     }
     pools.farms.forEach((f) => {
       let aprLpReward = 0;
