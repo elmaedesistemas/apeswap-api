@@ -7,7 +7,10 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { GeneralStatsNetworkDto } from 'src/interfaces/stats/generalStats.dto';
+import {
+  GeneralStatsNetworkDto,
+  ApeLpApr,
+} from 'src/interfaces/stats/generalStats.dto';
 import { Cache } from 'cache-manager';
 import { PriceService } from './price.service';
 import {
@@ -38,6 +41,7 @@ export class StatsNetworkService {
   private readonly DUAL_FARMS_LIST_URL = this.configService.getData<string>(
     'dualFarmsListUrl',
   );
+  private readonly STRAPI_URL = process.env.APESWAP_STRAPI_URL;
 
   constructor(
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
@@ -96,11 +100,16 @@ export class StatsNetworkService {
       `calculateStats-network-${chainId}`,
     );
     if (cachedValue) {
-      this.logger.log('Hit calculateStatsNetwork() cache');
+      this.logger.log(`Hit calculateStatsNetwork() cache for chain ${chainId}`);
       return cachedValue as GeneralStatsNetworkDto;
     }
     const infoStats = await this.verifyStats(chainId);
-    if (infoStats) return infoStats;
+    if (infoStats) {
+      this.logger.log(
+        `Pulled Network Stats from Database Entry for chain ${chainId}`,
+      );
+      return infoStats;
+    }
     await this.updateCreatedAtStats({ chainId });
     this.getStatsNetwork(chainId);
     const generalStats: any = await this.findGeneralStats({ chainId });
@@ -109,6 +118,9 @@ export class StatsNetworkService {
 
   async getStatsNetwork(chainId: number): Promise<GeneralStatsNetworkDto> {
     try {
+      this.logger.log(
+        `Attempting to generate network stats for chain ${chainId}.`,
+      );
       const masterApeContract = getContractNetwork(
         this.configService.getData<string>(`${chainId}.abi.masterApe`),
         this.configService.getData<string>(`${chainId}.contracts.masterApe`),
@@ -364,5 +376,34 @@ export class StatsNetworkService {
         liquidity: liquidity.toFixed(0),
       };
     });
+  }
+
+  async getLpAprs(): Promise<ApeLpApr[]> {
+    try {
+      const bscNetworkStatsData = await this.getCalculateStatsNetwork(56);
+      const polygonNetworkStatsData = await this.getCalculateStatsNetwork(137);
+
+      const polygonLpAprData = polygonNetworkStatsData['farms'].map((farm) => {
+        return { pid: farm.poolIndex, lpApr: farm.lpRewards.apr };
+      });
+
+      const bscLpAprData = bscNetworkStatsData['farms'].map((farm) => {
+        return { pid: farm.poolIndex, lpApr: farm.lpRewards.apr };
+      });
+
+      return [
+        {
+          chainId: 137,
+          lpAprs: polygonLpAprData,
+        },
+        {
+          chainId: 56,
+          lpAprs: bscLpAprData,
+        },
+      ];
+    } catch (error) {
+      this.logger.error(`Failed to get LP Aprs: ${error.message}`);
+      return null;
+    }
   }
 }

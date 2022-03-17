@@ -13,6 +13,8 @@ import {
   ChainIdDto,
   GeneralStats,
   GeneralStatsNetworkDto,
+  ApeLpApr,
+  HomepageFeatures,
 } from 'src/interfaces/stats/generalStats.dto';
 import { GeneralStatsChain } from 'src/interfaces/stats/generalStatsChain.dto';
 import { SentryInterceptor } from 'src/interceptor/sentry.interceptor';
@@ -67,6 +69,18 @@ export class StatsController {
   async getFarmPrices(): Promise<any> {
     this.logger.debug('Called GET /stats/farmPrices');
     return await this.statsService.getFarmPrices();
+  }
+
+  @Get('/network/lpAprs')
+  async getLpAprs(): Promise<ApeLpApr[]> {
+    this.logger.debug('Called GET /stats/network/lpAprs');
+    return await this.statsNetworkService.getLpAprs();
+  }
+
+  @Get('/features')
+  async getHomepageFeatures(): Promise<HomepageFeatures> {
+    this.logger.debug('Called GET /stats/features');
+    return await this.statsService.getHomepageFeatures();
   }
 
   @Get('network/:chainId')
