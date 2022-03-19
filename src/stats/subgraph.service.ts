@@ -1,10 +1,11 @@
 import { Injectable, HttpService, Logger } from '@nestjs/common';
 import dayjs from 'dayjs';
 import { ChainConfigService } from 'src/config/chain.configuration.service';
+import { MainNetworkPriceDto } from 'src/interfaces/stats/misc.dto';
 import {
-  get2DayPercentChange,
   getPercentChange,
   getTimestampsForChanges,
+  parseData,
 } from 'src/utils/helpers';
 import {
   dayData,
@@ -15,8 +16,7 @@ import {
   usersPairDayData,
   userPairDayData,
   polygonLiquidityQuery,
-  ETH_PRICE,
-  GET_BLOCK,
+  MAIN_NETWORK_PRICE,
   GET_BLOCKS,
   PAIRS_BULK,
   PAIRS_HISTORICAL_BULK,
@@ -190,75 +190,58 @@ export class SubgraphService {
     }
   }
 
-  async getEthPrice(chainId) {
+  async getMainNetworkPrice(chainId): Promise <MainNetworkPriceDto> {
     const utcCurrentTime = dayjs();
     const utcOneDayBack = utcCurrentTime
       .subtract(1, 'day')
       .startOf('minute')
       .unix();
-    let ethPrice = 0;
-    let ethPriceOneDay = 0;
-    let priceChangeETH = 0;
+    let price = 0;
+    let priceOneDay = 0;
+    let priceChange = 0;
 
     try {
       const url = this.configService.getData<string>(
         `${chainId}.subgraph.blocks`,
       );
-      const oneDayBlock = await this.getBlockFromTimestamp(
-        utcOneDayBack,
+      const oneDayBlock = await this.getBlocksFromTimestamps(
+        [utcOneDayBack],
         chainId,
       );
-      const result = await this.executeQuerySubraph(url, ETH_PRICE());
+      const result = await this.executeQuerySubraph(url, MAIN_NETWORK_PRICE());
       const resultOneDay = await this.executeQuerySubraph(
         url,
-        ETH_PRICE(oneDayBlock),
+        MAIN_NETWORK_PRICE(oneDayBlock[0].number || null),
       );
       const currentPrice = result?.data?.bundles[0]?.ethPrice;
       const oneDayBackPrice = resultOneDay?.data?.bundles[0]?.ethPrice;
-      priceChangeETH = getPercentChange(currentPrice, oneDayBackPrice);
-      ethPrice = currentPrice;
-      ethPriceOneDay = oneDayBackPrice;
+      priceChange = getPercentChange(currentPrice, oneDayBackPrice);
+      price = currentPrice;
+      priceOneDay = oneDayBackPrice;
     } catch (e) {
       console.log(e);
     }
 
-    return [ethPrice, ethPriceOneDay, priceChangeETH];
+    return { price, priceOneDay, priceChange}
   }
 
   async getBulkPairData(pairList, chainId) {
-    const [ethPrice] = await this.getEthPrice(chainId);
-    const [t1, t2, tWeek] = getTimestampsForChanges();
+    const { price } = await this.getMainNetworkPrice(chainId);
+    const { oneDay, twoDay, oneWeek } = getTimestampsForChanges();
     const [
       { number: b1 },
       { number: b2 },
       { number: bWeek },
-    ] = await this.getBlocksFromTimestamps([t1, t2, tWeek], chainId);
+    ] = await this.getBlocksFromTimestamps([oneDay, twoDay, oneWeek], chainId);
     try {
       const url = this.configService.getData<string>(
         `${chainId}.subgraph.principal`,
       );
-      const current = await this.executeQuerySubraph(url, PAIRS_BULK(pairList));
-      const [oneDayResult, twoDayResult, oneWeekResult] = await Promise.all(
-        [b1, b2, bWeek].map(async (block) => {
-          const result = await this.executeQuerySubraph(
-            url,
-            PAIRS_HISTORICAL_BULK(block, pairList),
-          );
-          return result;
-        }),
-      );
-
-      const oneDayData = oneDayResult?.data?.pairs.reduce((obj, cur) => {
-        return { ...obj, [cur.id]: cur };
-      }, {});
-
-      const twoDayData = twoDayResult?.data?.pairs.reduce((obj, cur) => {
-        return { ...obj, [cur.id]: cur };
-      }, {});
-
-      const oneWeekData = oneWeekResult?.data?.pairs.reduce((obj, cur) => {
-        return { ...obj, [cur.id]: cur };
-      }, {});
+      
+      const [ current, { oneDayData, twoDayData, oneWeekData }] = await Promise.all([
+        this.executeQuerySubraph(url, PAIRS_BULK(pairList)),
+        this.getDaysData(b1, b2, bWeek, pairList, url),
+      ]);
 
       const pairData = await Promise.all(
         current &&
@@ -269,34 +252,25 @@ export class SubgraphService {
             };
             let oneDayHistory = oneDayData?.[pair.id];
             if (!oneDayHistory) {
-              const newData = await this.executeQuerySubraph(
-                url,
-                PAIR_DATA(pair.id, b1),
-              );
+              const newData = await this.getPairHistory(url, pair, b1);
               oneDayHistory = newData.data.pairs[0];
             }
             let twoDayHistory = twoDayData?.[pair.id];
             if (!twoDayHistory) {
-              const newData = await this.executeQuerySubraph(
-                url,
-                PAIR_DATA(pair.id, b2),
-              );
+              const newData = await this.getPairHistory(url, pair, b2);
               twoDayHistory = newData.data.pairs[0];
             }
             let oneWeekHistory = oneWeekData?.[pair.id];
             if (!oneWeekHistory) {
-              const newData = await this.executeQuerySubraph(
-                url,
-                PAIR_DATA(pair.id, bWeek),
-              );
+              const newData = await this.getPairHistory(url, pair, bWeek);
               oneWeekHistory = newData.data.pairs[0];
             }
-            data = this.parseData(
+            data = parseData(
               data,
               oneDayHistory,
               twoDayHistory,
               oneWeekHistory,
-              ethPrice,
+              price,
               b1,
             );
             return data;
@@ -308,62 +282,35 @@ export class SubgraphService {
     }
   }
 
-  parseData(data, oneDayData, twoDayData, oneWeekData, ethPrice, oneDayBlock) {
-    // get volume changes
-    const [oneDayVolumeUSD, volumeChangeUSD] = get2DayPercentChange(
-      data?.volumeUSD,
-      oneDayData?.volumeUSD ? oneDayData.volumeUSD : 0,
-      twoDayData?.volumeUSD ? twoDayData.volumeUSD : 0,
+  async getDaysData(b1, b2, bWeek, pairList, url) {
+    const [oneDayResult, twoDayResult, oneWeekResult] = await Promise.all(
+      [b1, b2, bWeek].map(async (block) => {
+        const result = await this.executeQuerySubraph(
+          url,
+          PAIRS_HISTORICAL_BULK(block, pairList),
+        );
+        return result;
+      }),
     );
-    const [oneDayVolumeUntracked, volumeChangeUntracked] = get2DayPercentChange(
-      data?.untrackedVolumeUSD,
-      oneDayData?.untrackedVolumeUSD
-        ? parseFloat(oneDayData?.untrackedVolumeUSD)
-        : 0,
-      twoDayData?.untrackedVolumeUSD ? twoDayData?.untrackedVolumeUSD : 0,
-    );
-    const oneWeekVolumeUSD = parseFloat(
-      oneWeekData ? data?.volumeUSD - oneWeekData?.volumeUSD : data.volumeUSD,
-    );
+    const oneDayData = oneDayResult?.data?.pairs.reduce((obj, cur) => {
+      return { ...obj, [cur.id]: cur };
+    }, {});
 
-    // set volume properties
-    data.oneDayVolumeUSD = oneDayVolumeUSD;
-    data.oneWeekVolumeUSD = oneWeekVolumeUSD;
-    data.volumeChangeUSD = volumeChangeUSD;
-    data.oneDayVolumeUntracked = oneDayVolumeUntracked;
-    data.volumeChangeUntracked = volumeChangeUntracked;
-    data.tradeAmount = oneDayVolumeUSD;
+    const twoDayData = twoDayResult?.data?.pairs.reduce((obj, cur) => {
+      return { ...obj, [cur.id]: cur };
+    }, {});
 
-    // set liquiditry properties
-    data.trackedReserveUSD = data.trackedReserveETH * ethPrice;
-    data.liquidityChangeUSD = getPercentChange(
-      data.reserveUSD,
-      oneDayData?.reserveUSD,
-    );
+    const oneWeekData = oneWeekResult?.data?.pairs.reduce((obj, cur) => {
+      return { ...obj, [cur.id]: cur };
+    }, {});
 
-    // format if pair hasnt existed for a day or a week
-    if (!oneDayData && data && data.createdAtBlockNumber > oneDayBlock) {
-      data.oneDayVolumeUSD = parseFloat(data.volumeUSD);
-    }
-    if (!oneDayData && data) {
-      data.oneDayVolumeUSD = parseFloat(data.volumeUSD);
-    }
-    if (!oneWeekData && data) {
-      data.oneWeekVolumeUSD = parseFloat(data.volumeUSD);
-    }
-
-    return data;
+    return { oneDayData, twoDayData, oneWeekData }
   }
-
-  async getBlockFromTimestamp(timestamp: number, chainId) {
-    const url = this.configService.getData<string>(
-      `${chainId}.subgraph.blocks`,
-    );
-    const result = await this.executeQuerySubraph(
+  async getPairHistory(url, pair, time) {
+    return await this.executeQuerySubraph(
       url,
-      GET_BLOCK(timestamp, timestamp + 600),
+      PAIR_DATA(pair.id, time),
     );
-    return result?.data?.blocks?.[0]?.number;
   }
 
   async getBlocksFromTimestamps(timestamps, chainId, skipCount = 500) {

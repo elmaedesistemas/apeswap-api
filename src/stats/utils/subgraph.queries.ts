@@ -163,7 +163,7 @@ export const allPricesQuery = `{
   }
 }`;
 
-export const ETH_PRICE = (block?: number) => {
+export const MAIN_NETWORK_PRICE = (block?: number) => {
   const queryString = block
     ? `
     query bundles {
