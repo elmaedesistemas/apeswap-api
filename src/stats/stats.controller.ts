@@ -71,10 +71,10 @@ export class StatsController {
     return await this.statsService.getFarmPrices();
   }
 
-  @Get('/network/lpAprs')
-  async getLpAprs(): Promise<ApeLpApr[]> {
-    this.logger.debug('Called GET /stats/network/lpAprs');
-    return await this.statsNetworkService.getLpAprs();
+  @Get('/network/lpAprs/:chainId')
+  async getLpAprs(@Param() chainIdDto: ChainIdDto): Promise<ApeLpApr> {
+    this.logger.debug('Called GET /stats/network/lpAprs/:chainId');
+    return await this.statsNetworkService.getLpAprs(chainIdDto.chainId);
   }
 
   @Get('/features')

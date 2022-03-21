@@ -391,29 +391,15 @@ export class StatsNetworkService {
     });
   }
 
-  async getLpAprs(): Promise<ApeLpApr[]> {
+  async getLpAprs(chainId: number): Promise<ApeLpApr> {
     try {
-      const bscNetworkStatsData = await this.getCalculateStatsNetwork(56);
-      const polygonNetworkStatsData = await this.getCalculateStatsNetwork(137);
+      const networkStatsData = await this.getCalculateStatsNetwork(chainId);
 
-      const polygonLpAprData = polygonNetworkStatsData['farms'].map((farm) => {
+      const lpAprs = networkStatsData['farms'].map((farm) => {
         return { pid: farm.poolIndex, lpApr: farm.lpRewards.apr };
       });
 
-      const bscLpAprData = bscNetworkStatsData['farms'].map((farm) => {
-        return { pid: farm.poolIndex, lpApr: farm.lpRewards.apr };
-      });
-
-      return [
-        {
-          chainId: 137,
-          lpAprs: polygonLpAprData,
-        },
-        {
-          chainId: 56,
-          lpAprs: bscLpAprData,
-        },
-      ];
+      return { chainId, lpAprs };
     } catch (error) {
       this.logger.error(`Failed to get LP Aprs: ${error.message}`);
       return null;
