@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { DayPercentChangeDto, TimestampChangeDto } from 'src/interfaces/stats/misc.dto';
+import { DayPercentChangeDto, TimestampChangeDto, TokenVolume } from 'src/interfaces/stats/misc.dto';
 
 export function getParameterCaseInsensitive(object, key) {
   return object[
@@ -74,7 +74,7 @@ const get2DayPercentChange = (
   return { currentChange, adjustedPercentChange };
 };
 
-export function parseData(data, oneDayData, twoDayData, oneWeekData, price, oneDayBlock) {
+export function parseData(data, oneDayData, twoDayData, oneWeekData, price, oneDayBlock): TokenVolume {
   // get volume changes
   const { currentChange: oneDayVolumeUSD, adjustedPercentChange: volumeChangeUSD} = get2DayPercentChange(
     data?.volumeUSD,
@@ -93,7 +93,6 @@ export function parseData(data, oneDayData, twoDayData, oneWeekData, price, oneD
   );
 
   // set volume properties
-  data.oneDayVolumeUSD = oneDayVolumeUSD;
   data.volumeChangeUSD = volumeChangeUSD;
   data.oneDayVolumeUntracked = oneDayVolumeUntracked;
   data.volumeChangeUntracked = volumeChangeUntracked;
@@ -108,10 +107,10 @@ export function parseData(data, oneDayData, twoDayData, oneWeekData, price, oneD
 
   // format if pair hasnt existed for a day or a week
   if (!oneDayData && data && data.createdAtBlockNumber > oneDayBlock) {
-    data.oneDayVolumeUSD = parseFloat(data.volumeUSD);
+    data.tradeAmount = parseFloat(data.volumeUSD);
   }
   if (!oneDayData && data) {
-    data.oneDayVolumeUSD = parseFloat(data.volumeUSD);
+    data.tradeAmount = parseFloat(data.volumeUSD);
   }
   if (!oneWeekData && data) {
     data.oneWeekVolumeUSD = parseFloat(data.volumeUSD);
