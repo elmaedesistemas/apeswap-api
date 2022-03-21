@@ -74,7 +74,7 @@ export class StatsController {
   @Get('/network/lpAprs/:chainId')
   async getLpAprs(@Param() chainIdDto: ChainIdDto): Promise<ApeLpApr> {
     this.logger.debug('Called GET /stats/network/lpAprs/:chainId');
-    return await this.statsNetworkService.getLpAprs(chainIdDto.chainId);
+    return await this.statsNetworkService.getLpAprs(+chainIdDto.chainId);
   }
 
   @Get('/features')
