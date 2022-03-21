@@ -190,7 +190,7 @@ export class SubgraphService {
     }
   }
 
-  async getMainNetworkPrice(chainId): Promise <MainNetworkPriceDto> {
+  async getMainNetworkPrice(chainId): Promise<MainNetworkPriceDto> {
     const utcCurrentTime = dayjs();
     const utcOneDayBack = utcCurrentTime
       .subtract(1, 'day')
@@ -222,7 +222,7 @@ export class SubgraphService {
       console.log(e);
     }
 
-    return { price, priceOneDay, priceChange}
+    return { price, priceOneDay, priceChange };
   }
 
   async getBulkPairData(pairList, chainId) {
@@ -237,8 +237,11 @@ export class SubgraphService {
       const url = this.configService.getData<string>(
         `${chainId}.subgraph.principal`,
       );
-      
-      const [ current, { oneDayData, twoDayData, oneWeekData }] = await Promise.all([
+
+      const [
+        current,
+        { oneDayData, twoDayData, oneWeekData },
+      ] = await Promise.all([
         this.executeQuerySubraph(url, PAIRS_BULK(pairList)),
         this.getDaysData(b1, b2, bWeek, pairList, url),
       ]);
@@ -304,13 +307,10 @@ export class SubgraphService {
       return { ...obj, [cur.id]: cur };
     }, {});
 
-    return { oneDayData, twoDayData, oneWeekData }
+    return { oneDayData, twoDayData, oneWeekData };
   }
   async getPairHistory(url, pair, time) {
-    return await this.executeQuerySubraph(
-      url,
-      PAIR_DATA(pair.id, time),
-    );
+    return await this.executeQuerySubraph(url, PAIR_DATA(pair.id, time));
   }
 
   async getBlocksFromTimestamps(timestamps, chainId, skipCount = 500) {
