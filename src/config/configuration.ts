@@ -130,6 +130,11 @@ export default () => ({
       '0xe9e7cea3dedca5984780bafc599bd69add087d56',
       '0x603c7f932ed1fc6575303d8fb018fdcbb0f39a95',
     ],
+    subgraph: {
+      blocks:
+        'https://api.thegraph.com/subgraphs/name/matthewlilley/bsc-blocks',
+      principal: process.env.GRAPH_URL,
+    },
   },
   137: {
     contracts: {
@@ -158,5 +163,10 @@ export default () => ({
       '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270',
       '0x2791bca1f2de4661ed88a30c99a7a9449aa84174',
     ],
+    subgraph: {
+      blocks:
+        'https://api.thegraph.com/subgraphs/name/matthewlilley/polygon-blocks',
+      principal: process.env.POLYGON_GRAPH_URL,
+    },
   },
 });

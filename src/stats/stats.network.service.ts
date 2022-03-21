@@ -34,6 +34,7 @@ import { ChainConfigService } from 'src/config/chain.configuration.service';
 import { getContractNetwork } from 'src/utils/lib/web3';
 import { BitqueryService } from 'src/bitquery/bitquery.service';
 import { FarmStatsDto } from 'src/interfaces/stats/farm.dto';
+import { SubgraphService } from './subgraph.service';
 
 @Injectable()
 export class StatsNetworkService {
@@ -52,6 +53,7 @@ export class StatsNetworkService {
     private statsService: StatsService,
     private configService: ChainConfigService,
     private bitqueryService: BitqueryService,
+    private subgraphService: SubgraphService,
   ) {}
 
   createGeneralStats(stats, filter) {
@@ -356,6 +358,17 @@ export class StatsNetworkService {
       volumesList = [...volumesList, ...volumes];
       balanceList = [...balanceList, ...balance];
     }
+    if (volumesList.length === 0) {
+      this.logger.log('Calculating from the subgraph');
+      for (let index = 0; index < listAddresses.length; index++) {
+        const list = listAddresses[index];
+        const volumes = await this.subgraphService.getBulkPairData(
+          list,
+          chainId,
+        );
+        volumesList = [...volumesList, ...volumes];
+      }
+    }
     pools.farms.forEach((f) => {
       let aprLpReward = 0;
       let tradeAmount = 0;
@@ -378,29 +391,15 @@ export class StatsNetworkService {
     });
   }
 
-  async getLpAprs(): Promise<ApeLpApr[]> {
+  async getLpAprs(chainId: number): Promise<ApeLpApr> {
     try {
-      const bscNetworkStatsData = await this.getCalculateStatsNetwork(56);
-      const polygonNetworkStatsData = await this.getCalculateStatsNetwork(137);
+      const networkStatsData = await this.getCalculateStatsNetwork(chainId);
 
-      const polygonLpAprData = polygonNetworkStatsData['farms'].map((farm) => {
+      const lpAprs = networkStatsData['farms'].map((farm) => {
         return { pid: farm.poolIndex, lpApr: farm.lpRewards.apr };
       });
 
-      const bscLpAprData = bscNetworkStatsData['farms'].map((farm) => {
-        return { pid: farm.poolIndex, lpApr: farm.lpRewards.apr };
-      });
-
-      return [
-        {
-          chainId: 137,
-          lpAprs: polygonLpAprData,
-        },
-        {
-          chainId: 56,
-          lpAprs: bscLpAprData,
-        },
-      ];
+      return { chainId, lpAprs };
     } catch (error) {
       this.logger.error(`Failed to get LP Aprs: ${error.message}`);
       return null;
