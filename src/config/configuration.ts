@@ -80,6 +80,7 @@ export default () => ({
       'https://bsc-dataseed3.binance.org:443',
       'https://bsc-dataseed4.binance.org:443', */
     ],
+    archiveNode: process.env.ARCHIVE_BSC,
     lendingMarkets: [
       {
         name: 'BTC',
