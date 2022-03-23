@@ -1,5 +1,9 @@
 import dayjs from 'dayjs';
-import { DayPercentChangeDto, TimestampChangeDto, TokenVolume } from 'src/interfaces/stats/misc.dto';
+import {
+  DayPercentChangeDto,
+  TimestampChangeDto,
+  TokenVolume,
+} from 'src/interfaces/stats/misc.dto';
 
 export function getParameterCaseInsensitive(object, key) {
   return object[
@@ -69,19 +73,32 @@ const get2DayPercentChange = (
     (currentChange - previousChange / previousChange) * 100;
 
   if (isNaN(adjustedPercentChange) || !isFinite(adjustedPercentChange)) {
-    return {currentChange, adjustedPercentChange: 0};
+    return { currentChange, adjustedPercentChange: 0 };
   }
   return { currentChange, adjustedPercentChange };
 };
 
-export function parseData(data, oneDayData, twoDayData, oneWeekData, price, oneDayBlock): TokenVolume {
+export function parseData(
+  data,
+  oneDayData,
+  twoDayData,
+  oneWeekData,
+  price,
+  oneDayBlock,
+): TokenVolume {
   // get volume changes
-  const { currentChange: oneDayVolumeUSD, adjustedPercentChange: volumeChangeUSD} = get2DayPercentChange(
+  const {
+    currentChange: oneDayVolumeUSD,
+    adjustedPercentChange: volumeChangeUSD,
+  } = get2DayPercentChange(
     data?.volumeUSD,
     oneDayData?.volumeUSD ? oneDayData.volumeUSD : 0,
     twoDayData?.volumeUSD ? twoDayData.volumeUSD : 0,
   );
-  const {currentChange: oneDayVolumeUntracked, adjustedPercentChange: volumeChangeUntracked} = get2DayPercentChange(
+  const {
+    currentChange: oneDayVolumeUntracked,
+    adjustedPercentChange: volumeChangeUntracked,
+  } = get2DayPercentChange(
     data?.untrackedVolumeUSD,
     oneDayData?.untrackedVolumeUSD
       ? parseFloat(oneDayData?.untrackedVolumeUSD)
