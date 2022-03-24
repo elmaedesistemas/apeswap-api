@@ -256,7 +256,7 @@ export class StatsService {
             name: 'BANANA',
             address: '0x603c7f932ed1fc6575303d8fb018fdcbb0f39a95',
           },
-          link: 'https://apeswap.finance/farms',
+          link: `https://apeswap.finance/farms?pid=${poolIndex}`,
         });
       });
 
