@@ -34,6 +34,7 @@ import { ChainConfigService } from 'src/config/chain.configuration.service';
 import { getContractNetwork } from 'src/utils/lib/web3';
 import { BitqueryService } from 'src/bitquery/bitquery.service';
 import { FarmStatsDto } from 'src/interfaces/stats/farm.dto';
+import { SubgraphService } from './subgraph.service';
 
 @Injectable()
 export class StatsNetworkService {
@@ -52,6 +53,7 @@ export class StatsNetworkService {
     private statsService: StatsService,
     private configService: ChainConfigService,
     private bitqueryService: BitqueryService,
+    private subgraphService: SubgraphService,
   ) {}
 
   createGeneralStats(stats, filter) {
@@ -201,7 +203,13 @@ export class StatsNetworkService {
                 chainId,
               ),
             ]);
-          } catch (error) {}
+          } catch (error) {
+            console.log(error);
+            this.logger.error(
+              `Failed to map incentivized pools for network ${chainId}`,
+            );
+            throw error;
+          }
 
           generalStats.incentivizedPools.forEach((pool) => {
             if (!pool.t0Address) {
@@ -356,51 +364,65 @@ export class StatsNetworkService {
       volumesList = [...volumesList, ...volumes];
       balanceList = [...balanceList, ...balance];
     }
-    pools.farms.forEach((f) => {
-      let aprLpReward = 0;
-      let tradeAmount = 0;
-      let liquidity = 0;
-      try {
-        const volume = volumesList.find(
-          (v) =>
-            v.smartContract.address.address.toLowerCase() ===
-            f.address.toLowerCase(),
+    if (volumesList.length === 0) {
+      this.logger.log('Calculating from the subgraph');
+      for (let index = 0; index < listAddresses.length; index++) {
+        const list = listAddresses[index];
+        const volumes = await this.subgraphService.getBulkPairData(
+          list,
+          chainId,
         );
-        liquidity = getLiquidityFarm(balanceList, f);
-        tradeAmount = volume?.tradeAmount ?? 0;
-        aprLpReward = (((tradeAmount * fee) / 100) * 365) / +liquidity;
-      } catch (error) {}
-      f.lpRewards = {
-        volume: tradeAmount,
-        apr: aprLpReward,
-        liquidity: liquidity.toFixed(0),
-      };
+        volumesList = [...volumesList, ...volumes];
+      }
+    }
+    let generalStats;
+    if (volumesList.length === 0) {
+      this.logger.log(`Pulled lp apr from Database`);
+      generalStats = await this.findGeneralStats({ chainId });
+    }
+    pools.farms.forEach((f) => {
+      try {
+        const liquidity = getLiquidityFarm(balanceList, f);
+        let tradeAmount;
+        let aprLpReward;
+        if (volumesList.length !== 0) {
+          const volume = volumesList.find(
+            (v) =>
+              v.smartContract.address.address.toLowerCase() ===
+              f.address.toLowerCase(),
+          );
+          tradeAmount = volume?.tradeAmount ?? 0;
+          aprLpReward = (((tradeAmount * fee) / 100) * 365) / +liquidity;
+        } else {
+          const volume = generalStats?.farms.find(
+            (v) => v.address.toLowerCase() === f.address.toLowerCase(),
+          );
+          tradeAmount = volume?.lpRewards.volume;
+          aprLpReward = volume?.lpRewards.apr;
+        }
+
+        f.lpRewards = {
+          volume: tradeAmount,
+          apr: aprLpReward,
+          liquidity: liquidity.toFixed(0),
+        };
+      } catch (error) {
+        console.log(error);
+        this.logger.error(`Failed to compute APRs for network ${network}`);
+        throw error;
+      }
     });
   }
 
-  async getLpAprs(): Promise<ApeLpApr[]> {
+  async getLpAprs(chainId: number): Promise<ApeLpApr> {
     try {
-      const bscNetworkStatsData = await this.getCalculateStatsNetwork(56);
-      const polygonNetworkStatsData = await this.getCalculateStatsNetwork(137);
+      const networkStatsData = await this.getCalculateStatsNetwork(chainId);
 
-      const polygonLpAprData = polygonNetworkStatsData['farms'].map((farm) => {
+      const lpAprs = networkStatsData['farms'].map((farm) => {
         return { pid: farm.poolIndex, lpApr: farm.lpRewards.apr };
       });
 
-      const bscLpAprData = bscNetworkStatsData['farms'].map((farm) => {
-        return { pid: farm.poolIndex, lpApr: farm.lpRewards.apr };
-      });
-
-      return [
-        {
-          chainId: 137,
-          lpAprs: polygonLpAprData,
-        },
-        {
-          chainId: 56,
-          lpAprs: bscLpAprData,
-        },
-      ];
+      return { chainId, lpAprs };
     } catch (error) {
       this.logger.error(`Failed to get LP Aprs: ${error.message}`);
       return null;

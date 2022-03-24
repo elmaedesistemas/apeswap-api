@@ -65,20 +65,8 @@ export default () => ({
     olaCompoundLens: '0x183019dc7a8f8f1456df735862761cccf2e23009',
     appNodes: [
       'https://rpc.ankr.com/erigonbsc',
-      'https://bsc-dataseed.binance.org:443',
+      process.env.ARCHIVE_BSC,
       'https://bscrpc.com/',
-      // 'https://bsc-dataseed1.defibit.io:443',
-      // 'https://bsc-dataseed1.ninicoin.io:443',
-      // 'https://bsc-dataseed2.ninicoin.io:443',
-      // 'https://bsc-dataseed3.ninicoin.io:443',
-      // 'https://bsc-dataseed4.ninicoin.io:443',
-      /* 'https://bsc-dataseed2.defibit.io:443',
-      'https://bsc-dataseed3.defibit.io:443',
-      'https://bsc-dataseed4.defibit.io:443',
-      'https://bsc-dataseed1.binance.org:443',
-      'https://bsc-dataseed2.binance.org:443',
-      'https://bsc-dataseed3.binance.org:443',
-      'https://bsc-dataseed4.binance.org:443', */
     ],
     lendingMarkets: [
       {
@@ -130,6 +118,11 @@ export default () => ({
       '0xe9e7cea3dedca5984780bafc599bd69add087d56',
       '0x603c7f932ed1fc6575303d8fb018fdcbb0f39a95',
     ],
+    subgraph: {
+      blocks:
+        'https://api.thegraph.com/subgraphs/name/matthewlilley/bsc-blocks',
+      principal: process.env.GRAPH_URL,
+    },
   },
   137: {
     contracts: {
@@ -158,5 +151,10 @@ export default () => ({
       '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270',
       '0x2791bca1f2de4661ed88a30c99a7a9449aa84174',
     ],
+    subgraph: {
+      blocks:
+        'https://api.thegraph.com/subgraphs/name/matthewlilley/polygon-blocks',
+      principal: process.env.POLYGON_GRAPH_URL,
+    },
   },
 });
