@@ -629,19 +629,21 @@ export const getLiquidityFarm = (balance, farm) => {
   let tokenBalance = balances.balances.find(
     (b) => b.currency?.address.toLowerCase() === farm.t0Address.toLowerCase(),
   );
-  if (tokenBalance) return calculateValue(tokenBalance.value, farm?.p0);
+  if (tokenBalance)
+    return checkAndReplaceNegativeValue(tokenBalance.value, farm?.p0);
   if (!liquidity) {
     tokenBalance = balances.balances.find(
       (b) => b.currency.address.toLowerCase() === farm.t1Address.toLowerCase(),
     );
-    if (tokenBalance) return calculateValue(tokenBalance.value, farm?.p1);
+    if (tokenBalance)
+      return checkAndReplaceNegativeValue(tokenBalance.value, farm?.p1);
   }
   if (!liquidity) liquidity = 0;
 
   return liquidity;
 };
 
-const calculateValue = (balance, farm) => {
-  const value = balance < 0 ? balance*-1 : balance;
+const checkAndReplaceNegativeValue = (balance: number, farm: number): number => {
+  const value = balance < 0 ? balance * -1 : balance;
   return value * 2 * farm;
-}
+};
