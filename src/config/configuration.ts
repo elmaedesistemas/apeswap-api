@@ -65,20 +65,8 @@ export default () => ({
     olaCompoundLens: '0x183019dc7a8f8f1456df735862761cccf2e23009',
     appNodes: [
       'https://rpc.ankr.com/erigonbsc',
-      'https://bsc-dataseed.binance.org:443',
+      process.env.ARCHIVE_BSC,
       'https://bscrpc.com/',
-      // 'https://bsc-dataseed1.defibit.io:443',
-      // 'https://bsc-dataseed1.ninicoin.io:443',
-      // 'https://bsc-dataseed2.ninicoin.io:443',
-      // 'https://bsc-dataseed3.ninicoin.io:443',
-      // 'https://bsc-dataseed4.ninicoin.io:443',
-      /* 'https://bsc-dataseed2.defibit.io:443',
-      'https://bsc-dataseed3.defibit.io:443',
-      'https://bsc-dataseed4.defibit.io:443',
-      'https://bsc-dataseed1.binance.org:443',
-      'https://bsc-dataseed2.binance.org:443',
-      'https://bsc-dataseed3.binance.org:443',
-      'https://bsc-dataseed4.binance.org:443', */
     ],
     lendingMarkets: [
       {

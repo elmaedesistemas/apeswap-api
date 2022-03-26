@@ -203,7 +203,13 @@ export class StatsNetworkService {
                 chainId,
               ),
             ]);
-          } catch (error) {}
+          } catch (error) {
+            console.log(error);
+            this.logger.error(
+              `Failed to map incentivized pools for network ${chainId}`,
+            );
+            throw error;
+          }
 
           generalStats.incentivizedPools.forEach((pool) => {
             if (!pool.t0Address) {
@@ -400,7 +406,11 @@ export class StatsNetworkService {
           apr: aprLpReward,
           liquidity: liquidity.toFixed(0),
         };
-      } catch (error) {}
+      } catch (error) {
+        console.log(error);
+        this.logger.error(`Failed to compute APRs for network ${network}`);
+        throw error;
+      }
     });
   }
 
