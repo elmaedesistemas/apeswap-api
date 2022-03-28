@@ -203,7 +203,13 @@ export class StatsNetworkService {
                 chainId,
               ),
             ]);
-          } catch (error) {}
+          } catch (error) {
+            console.log(error);
+            this.logger.error(
+              `Failed to map incentivized pools for network ${chainId}`,
+            );
+            throw error;
+          }
 
           generalStats.incentivizedPools.forEach((pool) => {
             if (!pool.t0Address) {
@@ -369,25 +375,42 @@ export class StatsNetworkService {
         volumesList = [...volumesList, ...volumes];
       }
     }
+    let generalStats;
+    if (volumesList.length === 0) {
+      this.logger.log(`Pulled lp apr from Database`);
+      generalStats = await this.findGeneralStats({ chainId });
+    }
     pools.farms.forEach((f) => {
-      let aprLpReward = 0;
-      let tradeAmount = 0;
-      let liquidity = 0;
       try {
-        const volume = volumesList.find(
-          (v) =>
-            v.smartContract.address.address.toLowerCase() ===
-            f.address.toLowerCase(),
-        );
-        liquidity = getLiquidityFarm(balanceList, f);
-        tradeAmount = volume?.tradeAmount ?? 0;
-        aprLpReward = (((tradeAmount * fee) / 100) * 365) / +liquidity;
-      } catch (error) {}
-      f.lpRewards = {
-        volume: tradeAmount,
-        apr: aprLpReward,
-        liquidity: liquidity.toFixed(0),
-      };
+        const liquidity = getLiquidityFarm(balanceList, f);
+        let tradeAmount;
+        let aprLpReward;
+        if (volumesList.length !== 0) {
+          const volume = volumesList.find(
+            (v) =>
+              v.smartContract.address.address.toLowerCase() ===
+              f.address.toLowerCase(),
+          );
+          tradeAmount = volume?.tradeAmount ?? 0;
+          aprLpReward = (((tradeAmount * fee) / 100) * 365) / +liquidity;
+        } else {
+          const volume = generalStats?.farms.find(
+            (v) => v.address.toLowerCase() === f.address.toLowerCase(),
+          );
+          tradeAmount = volume?.lpRewards.volume;
+          aprLpReward = volume?.lpRewards.apr;
+        }
+
+        f.lpRewards = {
+          volume: tradeAmount,
+          apr: aprLpReward,
+          liquidity: liquidity.toFixed(0),
+        };
+      } catch (error) {
+        console.log(error);
+        this.logger.error(`Failed to compute APRs for network ${network}`);
+        throw error;
+      }
     });
   }
 
