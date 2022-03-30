@@ -245,7 +245,6 @@ export class SubgraphService {
         this.executeQuerySubraph(url, PAIRS_BULK(pairList)),
         this.getDaysData(b1, b2, bWeek, pairList, url),
       ]);
-
       const pairData = await Promise.all(
         current &&
           current.data.pairs.map(async (pair) => {
@@ -256,7 +255,7 @@ export class SubgraphService {
             let oneDayHistory = oneDayData?.[pair.id];
             if (!oneDayHistory) {
               const newData = await this.getPairHistory(url, pair, b1);
-              oneDayHistory = newData.data.pairs[0];
+              oneDayHistory = newData.data?.pairs[0];
             }
             let twoDayHistory = twoDayData?.[pair.id];
             if (!twoDayHistory) {
@@ -282,6 +281,7 @@ export class SubgraphService {
       return pairData;
     } catch (e) {
       console.log(e);
+      return [];
     }
   }
 
