@@ -650,10 +650,5 @@ const checkAndReplaceNegativeValue = (
   farm: number,
 ): number => {
   const value = balance < 0 ? balance * -1 : balance;
-
-  if (value > 0 && farm > 0) {
-    return value * 2 * farm;
-  } else {
-    return 0;
-  }
+  return value * 2 * farm;
 };
