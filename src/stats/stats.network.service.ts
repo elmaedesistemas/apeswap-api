@@ -402,7 +402,7 @@ export class StatsNetworkService {
               v.smartContract.address.address.toLowerCase() ===
               f.address.toLowerCase(),
           );
-          tradeAmount = volume?.tradeAmount ?? 0;
+          tradeAmount = Math.abs(volume?.tradeAmount) ?? 0;
           aprLpReward = (((tradeAmount * fee) / 100) * 365) / +liquidity;
         } else {
           const volume = generalStats?.farms.find(
