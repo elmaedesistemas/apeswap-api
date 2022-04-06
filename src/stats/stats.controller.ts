@@ -20,6 +20,7 @@ import { GeneralStatsChain } from 'src/interfaces/stats/generalStatsChain.dto';
 import { SentryInterceptor } from 'src/interceptor/sentry.interceptor';
 import { StatsService } from './stats.service';
 import { StatsNetworkService } from './stats.network.service';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('stats')
 @Controller('stats')
@@ -43,6 +44,7 @@ export class StatsController {
   @ApiOkResponse({
     type: GeneralStatsChain,
   })
+  @Throttle(200, 60)
   @Get('/tvl')
   async getTvlStats(): Promise<GeneralStatsChain> {
     this.logger.debug('Called GET /tvl');
@@ -71,6 +73,7 @@ export class StatsController {
     return await this.statsService.getFarmPrices();
   }
 
+  @Throttle(400, 60)
   @Get('/network/lpAprs/:chainId')
   async getLpAprs(@Param() chainIdDto: ChainIdDto): Promise<ApeLpApr> {
     this.logger.debug('Called GET /stats/network/lpAprs/:chainId');
