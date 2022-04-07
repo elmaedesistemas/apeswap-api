@@ -9,6 +9,6 @@ export class BillsController {
   @Get('/bsc/:billId')
   async getBillData(@Param('billId') billId: number) {
     this.logger.debug(`Called GET /bills/bsc/${billId}`);
-    return await this.billsService.getBillDataWithNftId({ tokenId: +billId });
+    return await this.billsService.getBillMetadata({ tokenId: +billId });
   }
 }

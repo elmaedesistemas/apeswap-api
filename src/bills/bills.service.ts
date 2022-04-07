@@ -1,23 +1,34 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectModel } from '@nestjs/mongoose';
 import BigNumber from 'bignumber.js';
 import { utils } from 'ethers';
+import { Model } from 'mongoose';
 import { Network } from 'src/web3/network.enum';
 import { Web3Service } from 'src/web3/web3.service';
 import { BillNft_abi } from './abi/BillNft.abi';
 import { CustomBill_abi } from './abi/CustomBill.abi';
 import { BillData, BillTerms } from './interface/billData.interface';
+import {
+  BillsMetadata,
+  BillsMetadataDocument,
+} from './schema/billsMetadata.schema';
 
 @Injectable()
 export class BillsService {
   logger = new Logger(BillsService.name);
 
   // TODO: move to config file
-  billNftContractAddress = '0xa863950f8bd810aa597d7a731d6a73fb608de9b6';
+  billNftContractAddress = '0xb0278e43dbd744327fe0d5d0aba4a77cbfc7fad8';
 
   terms: { [key: string]: BillTerms } = {};
 
-  constructor(private web3: Web3Service, private config: ConfigService) {
+  constructor(
+    private web3: Web3Service,
+    private config: ConfigService,
+    @InjectModel(BillsMetadata.name)
+    public billMetadataModel: Model<BillsMetadataDocument>,
+  ) {
     this.listenToEvents();
   }
 
@@ -89,6 +100,46 @@ export class BillsService {
     return billData;
   }
 
+  async getBillMetadata({ tokenId }) {
+    let billMetadata = await this.billMetadataModel.findOne({ tokenId });
+    if (!billMetadata) {
+      this.logger.log(`Loading bill ${tokenId}`);
+      const billData = await this.getBillDataWithNftId({ tokenId });
+      const newBillMetadata: BillsMetadata = {
+        name: `Treasury Bill #${tokenId}`,
+        description: `Treasury Bill #${tokenId}`,
+        attributes: [
+          {
+            trait_type: 'Layer 1',
+            value: 'Prop 1',
+          },
+          {
+            trait_type: 'Layer 2',
+            value: 'Prop 1',
+          },
+          {
+            trait_type: 'Layer 3',
+            value: 'Prop 1',
+          },
+          {
+            trait_type: 'Layer 4',
+            value: 'Prop 1',
+          },
+          {
+            trait_type: 'Layer 5',
+            value: 'Prop 1',
+          },
+        ],
+        data: billData,
+        tokenId,
+        contractAddress: this.billNftContractAddress,
+        image: 'https://i.imgur.com/daRKjBB.png',
+      };
+      billMetadata = await this.billMetadataModel.create(newBillMetadata);
+    }
+    return billMetadata;
+  }
+
   async fetchTokenIdMintEvent({ tokenId }) {
     const contract = this.web3.getEthersContract(
       Network.bsc,
@@ -97,11 +148,11 @@ export class BillsService {
     );
     const filters = contract.filters.Transfer(
       '0x0000000000000000000000000000000000000000',
-      '0x0341242eb1995a9407f1bf632e8da206858fbb3a',
+      null,
       tokenId,
     );
     // TODO: put BillNft deployment block
-    filters.fromBlock = 0;
+    filters.fromBlock = 16543530;
     const events = await this.web3
       .getArchiveRpcClient(Network.bsc)
       .getLogs(filters);

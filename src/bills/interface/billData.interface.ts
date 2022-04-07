@@ -22,3 +22,17 @@ export interface BillTerms {
   payoutToken: string;
   terms: Terms;
 }
+
+export interface Attribute {
+  trait_type: string;
+  value: string;
+}
+
+export interface BillMetadata {
+  name: string;
+  description: string;
+  tokenId: number;
+  image: string;
+  attributes: Attribute[];
+  data: BillData;
+}
