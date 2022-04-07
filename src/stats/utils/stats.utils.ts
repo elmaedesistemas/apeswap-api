@@ -621,29 +621,26 @@ export async function getAllocInfo(
   };
 }
 
-export const getLiquidityFarm = (balance, farm) => {
+export const getLiquidityFarm = (balance, farm): number => {
   const balances = balance.find(
     (b) => b.address.toLowerCase() === farm.address.toLowerCase(),
   );
+  if (!balances) return 0;
+  if (balances.reserveUSD) return Math.abs(balances.reserveUSD);
   let liquidity;
   let tokenBalance = balances.balances.find(
     (b) => b.currency?.address.toLowerCase() === farm.t0Address.toLowerCase(),
   );
   if (tokenBalance)
-    return checkAndReplaceNegativeValue(tokenBalance.value, farm?.p0);
+    return Math.abs(tokenBalance.value*2*farm?.p0);
   if (!liquidity) {
     tokenBalance = balances.balances.find(
       (b) => b.currency.address.toLowerCase() === farm.t1Address.toLowerCase(),
     );
     if (tokenBalance)
-      return checkAndReplaceNegativeValue(tokenBalance.value, farm?.p1);
+      return Math.abs(tokenBalance.value*2*farm?.p1);
   }
   if (!liquidity) liquidity = 0;
 
   return liquidity;
-};
-
-const checkAndReplaceNegativeValue = (balance: number, farm: number): number => {
-  const value = balance < 0 ? balance * -1 : balance;
-  return value * 2 * farm;
 };
