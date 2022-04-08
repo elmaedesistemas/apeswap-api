@@ -4,15 +4,18 @@ import { InjectModel } from '@nestjs/mongoose';
 import BigNumber from 'bignumber.js';
 import { utils } from 'ethers';
 import { Model } from 'mongoose';
+import { createLpPairName } from 'src/utils/helpers';
 import { Network } from 'src/web3/network.enum';
 import { Web3Service } from 'src/web3/web3.service';
 import { BillNft_abi } from './abi/BillNft.abi';
 import { CustomBill_abi } from './abi/CustomBill.abi';
 import { BillData, BillTerms } from './interface/billData.interface';
+import { generateAttributes } from './random.layers';
 import {
   BillsMetadata,
   BillsMetadataDocument,
 } from './schema/billsMetadata.schema';
+import { getLpInfo } from './token.helper';
 
 @Injectable()
 export class BillsService {
@@ -51,6 +54,9 @@ export class BillsService {
       billContract,
     );
 
+    const lpData = await getLpInfo(principalToken);
+    const bananaAddress = this.config.get<string>(`56.contracts.banana`);
+
     const billData: BillData = {
       billContract,
       payout: new BigNumber(eventLog.args.payout.toString())
@@ -59,11 +65,19 @@ export class BillsService {
       deposit: new BigNumber(eventLog.args.deposit.toString())
         .div(new BigNumber(10).pow(18))
         .toNumber(),
+      createTransactionHash: transactionHash,
       billNftId: eventLog.args.billId.toNumber(),
       expires: eventLog.args.expires.toNumber(),
       vestingPeriodSeconds: terms.vestingTerm,
       payoutToken: payoutToken,
       principalToken: principalToken,
+      type:
+        payoutToken.toLowerCase() === bananaAddress.toLowerCase()
+          ? 'Banana Bill'
+          : 'Jungle Bill',
+      pairName: createLpPairName(lpData.token0.symbol, lpData.token1.symbol),
+      token0: lpData.token0,
+      token1: lpData.token1,
     };
 
     return { transaction, eventLog, billData };
@@ -101,35 +115,17 @@ export class BillsService {
   }
 
   async getBillMetadata({ tokenId }) {
-    let billMetadata = await this.billMetadataModel.findOne({ tokenId });
+    let billMetadata = await this.billMetadataModel.findOne(
+      { tokenId },
+      '-_id',
+    );
     if (!billMetadata) {
       this.logger.log(`Loading bill ${tokenId}`);
       const billData = await this.getBillDataWithNftId({ tokenId });
       const newBillMetadata: BillsMetadata = {
         name: `Treasury Bill #${tokenId}`,
         description: `Treasury Bill #${tokenId}`,
-        attributes: [
-          {
-            trait_type: 'Layer 1',
-            value: 'Prop 1',
-          },
-          {
-            trait_type: 'Layer 2',
-            value: 'Prop 1',
-          },
-          {
-            trait_type: 'Layer 3',
-            value: 'Prop 1',
-          },
-          {
-            trait_type: 'Layer 4',
-            value: 'Prop 1',
-          },
-          {
-            trait_type: 'Layer 5',
-            value: 'Prop 1',
-          },
-        ],
+        attributes: generateAttributes(billData),
         data: billData,
         tokenId,
         contractAddress: this.billNftContractAddress,
@@ -174,7 +170,6 @@ export class BillsService {
       const billData = await this.getBillDataFromTransaction(
         event.transactionHash,
       );
-      console.log(billData);
     });
   }
 
@@ -188,7 +183,6 @@ export class BillsService {
     const billAddress = await billNftContract.methods
       .billAddresses(tokenId)
       .call();
-    console.log(billAddress);
     const { terms, payoutToken, principalToken } = await this.getBillTerms(
       billAddress,
     );
@@ -198,6 +192,10 @@ export class BillsService {
       billAddress,
     );
     const billInfo = await billContract.methods.billInfo(tokenId).call();
+
+    const lpData = await getLpInfo(principalToken);
+    const bananaAddress = this.config.get<string>(`56.contracts.banana`);
+
     const billData: BillData = {
       billContract,
       payout: new BigNumber(billInfo.payout.toString())
@@ -211,6 +209,13 @@ export class BillsService {
       vestingPeriodSeconds: terms.vestingTerm,
       payoutToken: payoutToken,
       principalToken: principalToken,
+      type:
+        payoutToken.toLowerCase() === bananaAddress.toLowerCase()
+          ? 'Banana Bill'
+          : 'Jungle Bill',
+      pairName: createLpPairName(lpData.token0.symbol, lpData.token1.symbol),
+      token0: lpData.token0,
+      token1: lpData.token1,
     };
     return billData;
   }

@@ -1,12 +1,22 @@
+interface TokenData {
+  name: string;
+  address: string;
+  symbol: string;
+}
 export interface BillData {
   billContract: string;
   principalToken: string;
   payoutToken: string;
+  createTransactionHash?: string;
   payout: number;
   deposit?: number;
   vestingPeriodSeconds: number;
   expires: number;
   billNftId: number;
+  pairName: string;
+  type: string;
+  token0: TokenData;
+  token1: TokenData;
 }
 
 export interface Terms {

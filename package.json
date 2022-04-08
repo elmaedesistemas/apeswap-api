@@ -45,11 +45,13 @@
     "mongoose": "^5.11.16",
     "pg": "^8.6.0",
     "postgres": "^1.0.2",
+    "prando": "^6.0.1",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^3.0.2",
     "rxjs": "^6.6.3",
     "sleep-promise": "^9.1.0",
     "streamifier": "^0.1.1",
+    "svg2img": "^0.9.4",
     "swagger-ui-express": "^4.1.6",
     "ultimate-text-to-image": "^1.0.0",
     "web3": "^1.4.0"
