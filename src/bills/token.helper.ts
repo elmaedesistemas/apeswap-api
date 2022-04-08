@@ -1,8 +1,10 @@
+import { APE_PRICE_GETTER } from 'src/stats/utils/abi/apePriceGetter';
 import { ERC20_ABI } from 'src/stats/utils/abi/erc20Abi';
 import { LP_ABI } from 'src/stats/utils/abi/lpAbi';
 import { multicall } from 'src/utils/lib/multicall';
+import { getBalanceNumber } from 'src/utils/math';
 
-export async function getLpInfo(tokenAddress) {
+export async function getLpInfo(tokenAddress, apePriceGetterAddress) {
   try {
     const [
       reserves,
@@ -58,6 +60,15 @@ export async function getLpInfo(tokenAddress) {
       },
     ]);
 
+    const lpPrice = await multicall(APE_PRICE_GETTER, [
+      {
+        address: apePriceGetterAddress,
+        name: 'getLPPrice',
+        params: [tokenAddress, decimals[0]],
+      },
+    ]);
+
+    const lpPriceFormatted = getBalanceNumber(lpPrice, decimals[0]);
     const totalSupply = supply / 10 ** decimals[0];
     const staked = balanceOf / 10 ** decimals[0];
 
@@ -73,6 +84,7 @@ export async function getLpInfo(tokenAddress) {
       staked,
       decimals: decimals[0],
       tokens: [token0[0], token1[0]],
+      lpPrice: lpPriceFormatted,
     };
   } catch (error) {
     console.log('inusual ', tokenAddress);

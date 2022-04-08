@@ -54,17 +54,22 @@ export class BillsService {
       billContract,
     );
 
-    const lpData = await getLpInfo(principalToken);
+    const lpData = await getLpInfo(
+      principalToken,
+      this.config.get<string>(`56.apePriceGetter`),
+    );
     const bananaAddress = this.config.get<string>(`56.contracts.banana`);
+
+    const deposit = new BigNumber(eventLog.args.deposit.toString())
+      .div(new BigNumber(10).pow(18))
+      .toNumber();
 
     const billData: BillData = {
       billContract,
       payout: new BigNumber(eventLog.args.payout.toString())
         .div(new BigNumber(10).pow(18))
         .toNumber(),
-      deposit: new BigNumber(eventLog.args.deposit.toString())
-        .div(new BigNumber(10).pow(18))
-        .toNumber(),
+      deposit,
       createTransactionHash: transactionHash,
       billNftId: eventLog.args.billId.toNumber(),
       expires: eventLog.args.expires.toNumber(),
@@ -78,6 +83,7 @@ export class BillsService {
       pairName: createLpPairName(lpData.token0.symbol, lpData.token1.symbol),
       token0: lpData.token0,
       token1: lpData.token1,
+      dollarValue: lpData.lpPrice * deposit,
     };
 
     return { transaction, eventLog, billData };
@@ -193,7 +199,10 @@ export class BillsService {
     );
     const billInfo = await billContract.methods.billInfo(tokenId).call();
 
-    const lpData = await getLpInfo(principalToken);
+    const lpData = await getLpInfo(
+      principalToken,
+      this.config.get<string>(`56.apePriceGetter`),
+    );
     const bananaAddress = this.config.get<string>(`56.contracts.banana`);
 
     const billData: BillData = {

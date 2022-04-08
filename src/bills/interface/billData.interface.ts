@@ -17,6 +17,7 @@ export interface BillData {
   type: string;
   token0: TokenData;
   token1: TokenData;
+  dollarValue?: number;
 }
 
 export interface Terms {
