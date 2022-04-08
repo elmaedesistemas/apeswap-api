@@ -153,7 +153,6 @@ export class BillsService {
       null,
       tokenId,
     );
-    // TODO: put BillNft deployment block
     filters.fromBlock = 16543530;
     const events = await this.web3
       .getArchiveRpcClient(Network.bsc)
