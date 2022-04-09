@@ -1,26 +1,30 @@
-import { HttpService, Injectable } from '@nestjs/common';
-import { UltimateTextToImage, getCanvasImage } from 'ultimate-text-to-image';
+import { HttpService, Injectable, Logger } from '@nestjs/common';
+import {
+  UltimateTextToImage,
+  getCanvasImage,
+  registerFont,
+  IImage,
+} from 'ultimate-text-to-image';
 import path from 'path';
 import svg2img from 'svg2img';
-import { writeFile } from 'fs/promises';
-import { keyBy } from 'lodash';
-
-// - Committed token (what the buyer gives, section A above)
-// - Received token (what the buyer gets vested, section A above)
-// - Terms Section (Amount of received TOKEN over the vested period)
-// - Vesting period (x days)
-// - Type (Jungle or BANANA)
-// - Maturation Date
-// - Easter Egg (for season)
+import { writeFile, readFile } from 'fs/promises';
+import moment from 'moment';
+import { BillMetadata } from './interface/billData.interface';
+import { pinFileToIPFS } from './pinata.helper';
+import sleep from 'sleep-promise';
 
 @Injectable()
 export class BillsImagesService {
-  tokenListUrl =
-    'https://raw.githubusercontent.com/ApeSwapFinance/apeswap-token-lists/main/lists/apeswap.json';
+  logger = new Logger(BillsImagesService.name);
 
-  tokenList;
-
-  constructor(private httpService: HttpService) {}
+  constructor(private httpService: HttpService) {
+    registerFont(path.join(__dirname, './fonts/Cash-Currency.ttf'), {
+      family: 'cashFont',
+    });
+    registerFont(path.join(__dirname, './fonts/ChevalierOpeDCD.otf'), {
+      family: 'Chevalier',
+    });
+  }
 
   toSvg(url: string, width: number): Promise<Buffer> {
     return new Promise((resolve, reject) => {
@@ -32,113 +36,193 @@ export class BillsImagesService {
     });
   }
 
-  async createBillImage(config) {
-    const token1 = await this.getToken(config.tokenAddress1);
-    const token2 = await this.getToken(config.tokenAddress2);
-    const payoutToken = await this.getToken(config.payoutTokenAddress);
-    const tokenImage1Uri = token1.logoURI;
-    const tokenImage2Uri = token2.logoURI;
+  async createAndUploadBillImage(billMetadata: BillMetadata, attempt = 0) {
+    try {
+      this.logger.log(`Generating bill ${billMetadata.name}`);
+      const buffer = await this.createBillImageWithMetadata(billMetadata);
+      const pin = await pinFileToIPFS(
+        process.env.PINATA_KEY,
+        process.env.PINATA_SECRET,
+        billMetadata.name,
+        buffer,
+      );
+      return `https://ipfs.io/ipfs/${pin.data.IpfsHash}`;
+    } catch (e) {
+      this.logger.error(
+        'Something went wrong creating and uploading the image',
+      );
+      this.logger.error(e);
+      if (attempt < 5) {
+        this.logger.log(`Retrying: ${attempt}`);
+        await sleep(100 * attempt);
+        return this.createAndUploadBillImage(billMetadata, attempt + 1);
+      }
+      throw e;
+    }
+  }
 
-    let canvasImage1;
-    let canvasImage2;
-    if (tokenImage1Uri.includes('.svg')) {
-      const buffer = await this.toSvg(tokenImage1Uri, 400);
-      canvasImage1 = await getCanvasImage({ buffer });
-    } else canvasImage1 = await getCanvasImage({ url: tokenImage1Uri });
+  async createBillImageWithMetadata(billMetadata: BillMetadata) {
+    // TODO: new image
+    let billBorder = 'silver';
+    if (
+      billMetadata.data.dollarValue >= 100 &&
+      billMetadata.data.dollarValue < 1000
+    ) {
+      billBorder = 'silver';
+    } else if (
+      billMetadata.data.dollarValue >= 1000 &&
+      billMetadata.data.dollarValue < 10000
+    ) {
+      billBorder = 'gold';
+    } else if (billMetadata.data.dollarValue >= 10000) {
+      billBorder = 'diamond';
+    }
 
-    if (tokenImage2Uri.includes('.svg')) {
-      const buffer = await this.toSvg(tokenImage2Uri, 400);
-      canvasImage2 = await getCanvasImage({ buffer });
-    } else canvasImage2 = await getCanvasImage({ url: tokenImage2Uri });
+    const baseLayers = [
+      './v1/location.png',
+      './v1/innovation.png',
+      `./v1/legend-${billBorder}.png`,
+      './v1/moment.png',
+      './v1/rectangles.png',
+      './v1/stamp.png',
+      './v1/trend.png',
+      './v1/BANANA.png',
+      './v1/WBNB.png',
+      // TODO: Get all token images
+      //`./v1/${billMetadata.data.token0.symbol}.png`,
+      // `./v1/${billMetadata.data.token1.symbol}.png`,
+    ];
 
-    const background = await getCanvasImage({ url: config.background });
+    const layers = await this.createLayers(baseLayers);
+
+    const type = await this.textToCanvasImage(
+      `${billMetadata.data.type.toUpperCase()} BILL`,
+      30,
+      'cashFont',
+      '#8D8578',
+    );
+
+    const vesting = await this.textToCanvasImage(
+      `${billMetadata.data.vestingPeriodSeconds / 86400} DAYS`,
+      30,
+      'cashFont',
+      '#8D8578',
+    );
+
+    const totalPayout = await this.textToCanvasImage(
+      `TOTAL PAYOUT`,
+      18,
+      'cashFont',
+    );
+
+    let precision = 5;
+    if (billMetadata.data.payout >= 100000) precision = 0;
+    else if (billMetadata.data.payout >= 10000) precision = 1;
+    else if (billMetadata.data.payout >= 1000) precision = 2;
+    else if (billMetadata.data.payout >= 100) precision = 3;
+    else if (billMetadata.data.payout >= 10) precision = 4;
+
     const amount = await this.textToCanvasImage(
-      `1,000 ${payoutToken.symbol} over ${config.vesting} days`,
-      18,
+      `${billMetadata.data.payout.toFixed(precision)} ${
+        billMetadata.data.payoutTokenData.symbol
+      }`,
+      26,
+      'cashFont',
     );
 
-    const type = await this.textToCanvasImage(`${config.type} Bill`, 18);
     const maturation = await this.textToCanvasImage(
-      config.maturationDate.toDateString(),
+      moment(billMetadata.data.expires * 1000)
+        .format('Do of MMMM, YYYY')
+        .toString()
+        .toUpperCase(),
       18,
+      'cashFont',
     );
 
-    const textToImage = new UltimateTextToImage(
-      `${token1.symbol}-${token2.symbol} APE-LP`,
-      {
-        width: 850,
-        height: 600,
-        align: 'center',
-        marginTop: 200,
-        fontSize: 42,
-        images: [
-          { canvasImage: background, layer: -1, repeat: 'fit' },
-          {
-            canvasImage: canvasImage1,
-            layer: 0,
-            repeat: 'fit',
-            width: 120,
-            height: 120,
-            x: 670,
-            y: 60,
-          },
-          {
-            canvasImage: canvasImage2,
-            layer: 0,
-            repeat: 'fit',
-            x: 60,
-            y: 60,
-            width: 120,
-            height: 120,
-          },
-          {
-            canvasImage: amount,
-            layer: 1,
-            x: 425 - amount.width / 2,
-            y: 310,
-          },
-          {
-            canvasImage: type,
-            layer: 1,
-            x: 605,
-            y: 490,
-          },
-          {
-            canvasImage: maturation,
-            layer: 1,
-            x: 170,
-            y: 490,
-          },
-        ],
-      },
-    )
+    const canvas = await getCanvasImage({ buffer: layers });
+
+    const textToImage = new UltimateTextToImage('', {
+      width: 1920,
+      height: 1080,
+      images: [
+        { canvasImage: canvas, layer: -1, repeat: 'fit' },
+        {
+          canvasImage: type,
+          layer: 1,
+          x: 1440,
+          y: 325,
+        },
+        {
+          canvasImage: vesting,
+          layer: 1,
+          x: 1510,
+          y: 370,
+        },
+        {
+          canvasImage: totalPayout,
+          layer: 1,
+          x: 1500,
+          y: 855,
+        },
+        {
+          canvasImage: amount,
+          layer: 1,
+          x: 1460,
+          y: 882,
+        },
+        {
+          canvasImage: maturation,
+          layer: 1,
+          x: 1475,
+          y: 920,
+        },
+      ],
+    })
       .render()
-      .toFile(path.join(__dirname, `image-${Math.random()}.png`));
+      .toStream();
     return textToImage;
   }
 
-  textToCanvasImage(text: string, fontSize: number) {
-    const buffer = new UltimateTextToImage(text, { fontSize })
+  async createLayers(layers) {
+    const layerBuffers = await Promise.all(
+      layers.map((layer) => {
+        return readFile(path.join(__dirname, `./images/${layer}`));
+      }),
+    );
+
+    const imageCanvas = await Promise.all(
+      layerBuffers.map((buffer: Buffer) => {
+        return getCanvasImage({ buffer });
+      }),
+    );
+
+    const images: IImage[] = imageCanvas.map((canvasImage) => {
+      return { canvasImage, layer: 0, repeat: 'fit' };
+    });
+
+    const textToImage = new UltimateTextToImage('', {
+      width: 1920,
+      height: 1080,
+      images,
+    })
+      .render()
+      .toBuffer();
+    return textToImage;
+  }
+
+  textToCanvasImage(
+    text: string,
+    fontSize: number,
+    fontFamily = 'sans-serif',
+    fontColor = '#7E7579',
+  ) {
+    const buffer = new UltimateTextToImage(text, {
+      fontSize,
+      fontFamily,
+      fontColor,
+    })
       .render()
       .toBuffer();
     return getCanvasImage({ buffer });
-  }
-
-  async getToken(tokenAddress: string) {
-    const tokenList = await this.getTokenList();
-    return tokenList[tokenAddress.toLowerCase()];
-  }
-
-  async getTokenList() {
-    if (!this.tokenList) this.tokenList = await this.fetchTokenList();
-    return this.tokenList;
-  }
-
-  async fetchTokenList() {
-    const { data } = await this.httpService.get(this.tokenListUrl).toPromise();
-    const tokens = data.tokens.map((token) => {
-      return { ...token, address: token.address.toLowerCase() };
-    });
-    return keyBy(tokens, 'address');
   }
 }

@@ -4,7 +4,11 @@ import { LP_ABI } from 'src/stats/utils/abi/lpAbi';
 import { multicall } from 'src/utils/lib/multicall';
 import { getBalanceNumber } from 'src/utils/math';
 
-export async function getLpInfo(tokenAddress, apePriceGetterAddress) {
+export async function getLpInfo(
+  tokenAddress,
+  payoutTokenAddress,
+  apePriceGetterAddress,
+) {
   try {
     const [
       reserves,
@@ -41,6 +45,8 @@ export async function getLpInfo(tokenAddress, apePriceGetterAddress) {
       token0Symbol,
       token1Name,
       token1Symbol,
+      payoutTokenName,
+      payoutTokenSymbol,
     ] = await multicall(ERC20_ABI, [
       {
         address: token0[0],
@@ -56,6 +62,14 @@ export async function getLpInfo(tokenAddress, apePriceGetterAddress) {
       },
       {
         address: token1[0],
+        name: 'symbol',
+      },
+      {
+        address: payoutTokenAddress,
+        name: 'name',
+      },
+      {
+        address: payoutTokenAddress,
         name: 'symbol',
       },
     ]);
@@ -76,13 +90,26 @@ export async function getLpInfo(tokenAddress, apePriceGetterAddress) {
     const q1 = reserves._reserve1;
     return {
       address: tokenAddress,
-      token0: { address: token0[0], symbol: token0Symbol, name: token0Name },
+      token0: {
+        address: token0[0],
+        symbol: token0Symbol[0],
+        name: token0Name[0],
+      },
       q0,
-      token1: { address: token1[0], symbol: token1Symbol, name: token1Name },
+      token1: {
+        address: token1[0],
+        symbol: token1Symbol[0],
+        name: token1Name[0],
+      },
       q1,
       totalSupply,
       staked,
       decimals: decimals[0],
+      payoutToken: {
+        address: payoutTokenAddress,
+        name: payoutTokenName[0],
+        symbol: payoutTokenSymbol[0],
+      },
       tokens: [token0[0], token1[0]],
       lpPrice: lpPriceFormatted,
     };

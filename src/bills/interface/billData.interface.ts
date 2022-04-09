@@ -15,6 +15,7 @@ export interface BillData {
   billNftId: number;
   pairName: string;
   type: string;
+  payoutTokenData: TokenData;
   token0: TokenData;
   token1: TokenData;
   dollarValue?: number;
@@ -22,7 +23,7 @@ export interface BillData {
 
 export interface Terms {
   controlVariable: number;
-  vestingTerm: number;
+  vestingTerm: string;
   minimumPrice: number;
   maxPayout: number;
   maxDebt: number;
@@ -43,7 +44,8 @@ export interface BillMetadata {
   name: string;
   description: string;
   tokenId: number;
-  image: string;
+  image?: string;
   attributes: Attribute[];
   data: BillData;
+  contractAddress: string;
 }

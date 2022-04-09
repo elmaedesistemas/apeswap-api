@@ -4,13 +4,15 @@ import { InjectModel } from '@nestjs/mongoose';
 import BigNumber from 'bignumber.js';
 import { utils } from 'ethers';
 import { Model } from 'mongoose';
+import sleep from 'sleep-promise';
 import { createLpPairName } from 'src/utils/helpers';
 import { Network } from 'src/web3/network.enum';
 import { Web3Service } from 'src/web3/web3.service';
 import { BillNft_abi } from './abi/BillNft.abi';
 import { CustomBill_abi } from './abi/CustomBill.abi';
+import { BillsImagesService } from './bills.images.service';
 import { BillData, BillTerms } from './interface/billData.interface';
-import { generateAttributes } from './random.layers';
+import { generateV1Attributes } from './random.layers';
 import {
   BillsMetadata,
   BillsMetadataDocument,
@@ -29,6 +31,7 @@ export class BillsService {
   constructor(
     private web3: Web3Service,
     private config: ConfigService,
+    private image: BillsImagesService,
     @InjectModel(BillsMetadata.name)
     public billMetadataModel: Model<BillsMetadataDocument>,
   ) {
@@ -56,6 +59,7 @@ export class BillsService {
 
     const lpData = await getLpInfo(
       principalToken,
+      payoutToken,
       this.config.get<string>(`56.apePriceGetter`),
     );
     const bananaAddress = this.config.get<string>(`56.contracts.banana`);
@@ -73,14 +77,15 @@ export class BillsService {
       createTransactionHash: transactionHash,
       billNftId: eventLog.args.billId.toNumber(),
       expires: eventLog.args.expires.toNumber(),
-      vestingPeriodSeconds: terms.vestingTerm,
+      vestingPeriodSeconds: parseInt(terms.vestingTerm),
       payoutToken: payoutToken,
       principalToken: principalToken,
       type:
         payoutToken.toLowerCase() === bananaAddress.toLowerCase()
-          ? 'Banana Bill'
-          : 'Jungle Bill',
+          ? 'Banana'
+          : 'Jungle',
       pairName: createLpPairName(lpData.token0.symbol, lpData.token1.symbol),
+      payoutTokenData: lpData.payoutToken,
       token0: lpData.token0,
       token1: lpData.token1,
       dollarValue: lpData.lpPrice * deposit,
@@ -112,12 +117,23 @@ export class BillsService {
     return { terms, payoutToken, principalToken };
   }
 
-  async getBillDataWithNftId({ tokenId }) {
-    const event = await this.fetchTokenIdMintEvent({ tokenId });
-    const { billData } = await this.getBillDataFromTransaction(
-      event[0].transactionHash,
-    );
-    return billData;
+  async getBillDataWithNftId({ tokenId, attempt = 0 }) {
+    try {
+      const event = await this.fetchTokenIdMintEvent({ tokenId });
+      const { billData } = await this.getBillDataFromTransaction(
+        event[0].transactionHash,
+      );
+      return billData;
+    } catch (e) {
+      this.logger.error(`Something went wrong getting bill data with NFT`);
+      this.logger.error(e);
+      if (attempt < 5) {
+        this.logger.log(`Retrying - Attempt: ${attempt}`);
+        await sleep(100 * attempt);
+        return this.getBillDataWithNftId({ tokenId, attempt: attempt + 1 });
+      }
+      throw e;
+    }
   }
 
   async getBillMetadata({ tokenId }) {
@@ -131,12 +147,14 @@ export class BillsService {
       const newBillMetadata: BillsMetadata = {
         name: `Treasury Bill #${tokenId}`,
         description: `Treasury Bill #${tokenId}`,
-        attributes: generateAttributes(billData),
+        attributes: generateV1Attributes(billData),
         data: billData,
         tokenId,
         contractAddress: this.billNftContractAddress,
-        image: 'https://i.imgur.com/daRKjBB.png',
       };
+      newBillMetadata.image = await this.image.createAndUploadBillImage(
+        newBillMetadata,
+      );
       billMetadata = await this.billMetadataModel.create(newBillMetadata);
     }
     return billMetadata;
@@ -200,6 +218,7 @@ export class BillsService {
 
     const lpData = await getLpInfo(
       principalToken,
+      payoutToken,
       this.config.get<string>(`56.apePriceGetter`),
     );
     const bananaAddress = this.config.get<string>(`56.contracts.banana`);
@@ -214,14 +233,15 @@ export class BillsService {
         .toNumber(), */
       billNftId: tokenId,
       expires: billInfo.vesting + billInfo.lastBlockTimestamp,
-      vestingPeriodSeconds: terms.vestingTerm,
+      vestingPeriodSeconds: parseInt(terms.vestingTerm),
       payoutToken: payoutToken,
       principalToken: principalToken,
       type:
         payoutToken.toLowerCase() === bananaAddress.toLowerCase()
-          ? 'Banana Bill'
-          : 'Jungle Bill',
+          ? 'Banana'
+          : 'Jungle',
       pairName: createLpPairName(lpData.token0.symbol, lpData.token1.symbol),
+      payoutTokenData: lpData.payoutToken,
       token0: lpData.token0,
       token1: lpData.token1,
     };

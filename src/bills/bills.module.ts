@@ -2,6 +2,7 @@ import { HttpModule, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Web3Module } from 'src/web3/web3.module';
 import { BillsController } from './bills.controller';
+import { BillsImagesService } from './bills.images.service';
 import { BillsService } from './bills.service';
 import {
   BillsMetadata,
@@ -17,6 +18,6 @@ import {
     ]),
   ],
   controllers: [BillsController],
-  providers: [BillsService],
+  providers: [BillsService, BillsImagesService],
 })
 export class BillsModule {}

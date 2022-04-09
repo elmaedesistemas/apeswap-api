@@ -16,7 +16,7 @@ export class BillsMetadata {
   tokenId: number;
 
   @Prop({ required: true })
-  image: string;
+  image?: string;
 
   @Prop({ required: true })
   attributes: Attribute[];

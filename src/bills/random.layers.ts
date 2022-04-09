@@ -86,6 +86,7 @@ export const Location = [
     weight: 10,
   },
 ];
+
 export const Moment = [
   {
     item: 'The Genesis Block',
@@ -218,6 +219,61 @@ const layers = {
   Trend,
   Innovation,
 };
+
+export function generateV1Attributes(billData: BillData) {
+  let billBorder = 'Bronze';
+  if (billData.dollarValue >= 100 && billData.dollarValue < 1000) {
+    billBorder = 'Silver';
+  } else if (billData.dollarValue >= 1000 && billData.dollarValue < 10000) {
+    billBorder = 'Gold';
+  } else if (billData.dollarValue >= 10000) {
+    billBorder = 'Diamond';
+  }
+
+  const attributes: Attribute[] = [
+    {
+      trait_type: 'Principal Token',
+      value: billData.principalToken,
+    },
+    {
+      trait_type: 'Payout Token',
+      value: billData.payoutToken,
+    },
+    {
+      trait_type: 'Vesting Period',
+      value: billData.vestingPeriodSeconds.toString(),
+    },
+    {
+      trait_type: 'Type',
+      value: billData.type,
+    },
+    {
+      trait_type: 'Version',
+      value: 'V1',
+    },
+    {
+      trait_type: 'The Legend',
+      value: `Obie Dobo - ${billBorder}`,
+    },
+    {
+      trait_type: 'The Location',
+      value: 'The Jungle',
+    },
+    {
+      trait_type: 'The Moment',
+      value: 'Youthful Flute',
+    },
+    {
+      trait_type: 'The Trend',
+      value: 'BANANA',
+    },
+    {
+      trait_type: 'The Innovation',
+      value: 'Memes',
+    },
+  ];
+  return attributes;
+}
 
 export function generateAttributes(billData: BillData) {
   const attributes: Attribute[] = [
