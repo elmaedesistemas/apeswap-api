@@ -12,7 +12,7 @@ export class BillsMetadata {
   @Prop({ required: true })
   description: string;
 
-  @Prop({ required: true, index: true })
+  @Prop({ required: true, index: true, unique: true })
   tokenId: number;
 
   @Prop({ required: true })

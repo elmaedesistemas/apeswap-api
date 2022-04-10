@@ -28,6 +28,9 @@ export class BillsService {
 
   terms: { [key: string]: BillTerms } = {};
 
+  // Used to check if other create transaction is running on state
+  billCreations = {};
+
   constructor(
     private web3: Web3Service,
     private config: ConfigService,
@@ -144,18 +147,44 @@ export class BillsService {
     if (!billMetadata) {
       this.logger.log(`Loading bill ${tokenId}`);
       const billData = await this.getBillDataWithNftId({ tokenId });
-      const newBillMetadata: BillsMetadata = {
-        name: `Treasury Bill #${tokenId}`,
-        description: `Treasury Bill #${tokenId}`,
-        attributes: generateV1Attributes(billData),
-        data: billData,
-        tokenId,
-        contractAddress: this.billNftContractAddress,
-      };
-      newBillMetadata.image = await this.image.createAndUploadBillImage(
-        newBillMetadata,
-      );
-      billMetadata = await this.billMetadataModel.create(newBillMetadata);
+      if (!this.billCreations[billData.createTransactionHash]) {
+        billMetadata = await this.createNewBill(billData);
+      } else
+        billMetadata = await this.billCreations[billData.createTransactionHash];
+    }
+    return billMetadata;
+  }
+
+  async getBillMetadataWithHash({ transactionHash, tokenId, attempt = 0 }) {
+    let billMetadata = await this.billMetadataModel.findOne(
+      { tokenId },
+      '-_id',
+    );
+    if (!billMetadata) {
+      try {
+        this.logger.log(`Loading bill ${tokenId}`);
+        if (!this.billCreations[transactionHash]) {
+          const { billData } = await this.getBillDataFromTransaction(
+            transactionHash,
+          );
+          billMetadata = await this.createNewBill(billData);
+        } else billMetadata = await this.billCreations[transactionHash];
+      } catch (e) {
+        this.logger.error(
+          `Something went wrong creating bill data with transation hash`,
+        );
+        this.logger.error(e);
+        if (attempt < 5) {
+          this.logger.log(`Retrying - Attempt: ${attempt}`);
+          await sleep(100 * attempt);
+          return this.getBillMetadataWithHash({
+            transactionHash,
+            tokenId,
+            attempt: attempt + 1,
+          });
+        }
+        throw e;
+      }
     }
     return billMetadata;
   }
@@ -190,10 +219,32 @@ export class BillsService {
     );
     this.web3.getRpcClient(Network.bsc).on(filter, async (event) => {
       this.logger.log('BillNft mint event triggered');
-      const billData = await this.getBillDataFromTransaction(
-        event.transactionHash,
-      );
+      if (!this.billCreations[event.transactionHash]) {
+        const { billData } = await this.getBillDataFromTransaction(
+          event.transactionHash,
+        );
+        this.billCreations[event.transactionHash] = this.createNewBill(
+          billData,
+        );
+        await this.billCreations[event.transactionHash];
+        delete this.billCreations[event.transactionHash];
+      }
     });
+  }
+
+  async createNewBill(billData: BillData) {
+    const newBillMetadata: BillsMetadata = {
+      name: `Treasury Bill #${billData.billNftId}`,
+      description: `Treasury Bill #${billData.billNftId}`,
+      attributes: generateV1Attributes(billData),
+      data: billData,
+      tokenId: billData.billNftId,
+      contractAddress: this.billNftContractAddress,
+    };
+    newBillMetadata.image = await this.image.createAndUploadBillImage(
+      newBillMetadata,
+    );
+    return this.billMetadataModel.create(newBillMetadata);
   }
 
   // TODO: evaluate need for this function ~ consider removal
