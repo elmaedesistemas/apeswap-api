@@ -4,10 +4,11 @@ import {
   getCanvasImage,
   registerFont,
   IImage,
+  IFontWeight,
 } from 'ultimate-text-to-image';
 import path from 'path';
 import svg2img from 'svg2img';
-import { writeFile, readFile } from 'fs/promises';
+import { writeFile, readFile, readdir } from 'fs/promises';
 import moment from 'moment';
 import { BillMetadata } from './interface/billData.interface';
 import { pinFileToIPFS } from './pinata.helper';
@@ -17,12 +18,16 @@ import sleep from 'sleep-promise';
 export class BillsImagesService {
   logger = new Logger(BillsImagesService.name);
 
+  supportedTokenImages = [];
+
   constructor(private httpService: HttpService) {
     registerFont(path.join(__dirname, './fonts/Cash-Currency.ttf'), {
       family: 'cashFont',
     });
-    registerFont(path.join(__dirname, './fonts/ChevalierOpeDCD.otf'), {
-      family: 'Chevalier',
+    readdir(path.join(__dirname, `./images/tokens`)).then((tokens) => {
+      this.supportedTokenImages = tokens.map((token) =>
+        token.replace('.png', ''),
+      );
     });
   }
 
@@ -46,7 +51,7 @@ export class BillsImagesService {
         billMetadata.name,
         buffer,
       );
-      return `https://ipfs.io/ipfs/${pin.data.IpfsHash}`;
+      return `https://apeswap.mypinata.cloud/ipfs/${pin.data.IpfsHash}`;
     } catch (e) {
       this.logger.error(
         'Something went wrong creating and uploading the image',
@@ -62,8 +67,7 @@ export class BillsImagesService {
   }
 
   async createBillImageWithMetadata(billMetadata: BillMetadata) {
-    // TODO: new image
-    let billBorder = 'silver';
+    let billBorder = 'bronze';
     if (
       billMetadata.data.dollarValue >= 100 &&
       billMetadata.data.dollarValue < 1000
@@ -86,12 +90,16 @@ export class BillsImagesService {
       './v1/rectangles.png',
       './v1/stamp.png',
       './v1/trend.png',
-      './v1/BANANA.png',
-      './v1/WBNB.png',
-      // TODO: Get all token images
-      //`./v1/${billMetadata.data.token0.symbol}.png`,
-      // `./v1/${billMetadata.data.token1.symbol}.png`,
     ];
+
+    // TODO: Get all token images
+    if (
+      this.supportedTokenImages.includes(billMetadata.data.token1.symbol) &&
+      this.supportedTokenImages.includes(billMetadata.data.token0.symbol)
+    ) {
+      baseLayers.push(`./tokens/${billMetadata.data.token0.symbol}.png`);
+      baseLayers.push(`./tokens/${billMetadata.data.token1.symbol}.png`);
+    }
 
     const layers = await this.createLayers(baseLayers);
 
@@ -99,20 +107,21 @@ export class BillsImagesService {
       `${billMetadata.data.type.toUpperCase()} BILL`,
       30,
       'cashFont',
-      '#8D8578',
+      '#695B5B',
     );
 
     const vesting = await this.textToCanvasImage(
       `${billMetadata.data.vestingPeriodSeconds / 86400} DAYS`,
       30,
       'cashFont',
-      '#8D8578',
+      '#695B5B',
     );
 
     const totalPayout = await this.textToCanvasImage(
       `TOTAL PAYOUT`,
       18,
       'cashFont',
+      '#695B5B',
     );
 
     let precision = 5;
@@ -128,6 +137,7 @@ export class BillsImagesService {
       }`,
       26,
       'cashFont',
+      '#695B5B',
     );
 
     const maturation = await this.textToCanvasImage(
@@ -137,6 +147,7 @@ export class BillsImagesService {
         .toUpperCase(),
       18,
       'cashFont',
+      '#695B5B',
     );
 
     const canvas = await getCanvasImage({ buffer: layers });
@@ -149,36 +160,37 @@ export class BillsImagesService {
         {
           canvasImage: type,
           layer: 1,
-          x: 1440,
-          y: 325,
+          x: 1449,
+          y: 323,
         },
         {
           canvasImage: vesting,
           layer: 1,
-          x: 1510,
-          y: 370,
+          x: 1519,
+          y: 368,
         },
         {
           canvasImage: totalPayout,
           layer: 1,
-          x: 1500,
-          y: 855,
+          x: 1494,
+          y: 853,
         },
         {
           canvasImage: amount,
           layer: 1,
-          x: 1460,
-          y: 882,
+          x: 1454,
+          y: 880,
         },
         {
           canvasImage: maturation,
           layer: 1,
-          x: 1475,
-          y: 920,
+          x: 1469,
+          y: 918,
         },
       ],
     })
       .render()
+      // .toFile(path.join(__dirname, `image-${Math.random()}.png`));
       .toStream();
     return textToImage;
   }
@@ -215,11 +227,13 @@ export class BillsImagesService {
     fontSize: number,
     fontFamily = 'sans-serif',
     fontColor = '#7E7579',
+    fontWeight: IFontWeight = '400',
   ) {
     const buffer = new UltimateTextToImage(text, {
       fontSize,
       fontFamily,
       fontColor,
+      fontWeight,
     })
       .render()
       .toBuffer();

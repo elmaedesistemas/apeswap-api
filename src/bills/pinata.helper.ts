@@ -16,8 +16,6 @@ export const pinFileToIPFS = (
   (streamData as any).path = 'some_filename.png';
   data.append('file', streamData);
 
-  //You'll need to make sure that the metadata is in the form of a JSON object that's been convered to a string
-  //metadata is optional
   const metadata = JSON.stringify({
     name,
     keyvalues: {
@@ -26,25 +24,8 @@ export const pinFileToIPFS = (
   });
   data.append('pinataMetadata', metadata);
 
-  const pinataOptions = JSON.stringify({
-    cidVersion: 0,
-    customPinPolicy: {
-      regions: [
-        {
-          id: 'FRA1',
-          desiredReplicationCount: 1,
-        },
-        {
-          id: 'NYC1',
-          desiredReplicationCount: 2,
-        },
-      ],
-    },
-  });
-  // data.append('pinataOptions', pinataOptions);
-
   return axios.post(url, data, {
-    maxBodyLength: 999999999999999999999, //this is needed to prevent axios from erroring out with large files
+    maxBodyLength: 999999999999999999999, // this is needed to prevent axios from erroring out with large files
     headers: {
       'Content-Type': `multipart/form-data; boundary=${
         (data as any)._boundary

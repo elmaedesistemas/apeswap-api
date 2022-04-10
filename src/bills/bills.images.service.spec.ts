@@ -50,7 +50,7 @@ const MockMetadata: BillMetadata = {
   description: 'Treasury Bill #18',
   data: {
     billContract: '0xdbc91eccc7245983969616996b45d841dda35d1b',
-    payout: 333.41314092146433,
+    payout: 21.41314092146433,
     deposit: 3.9996,
     createTransactionHash:
       '0x5842dad16b8c6d17bf453aa563b342f9345d7e37209883ba5908ff4c13e195e9',
@@ -76,7 +76,7 @@ const MockMetadata: BillMetadata = {
       symbol: 'WBNB',
       name: 'Wrapped BNB',
     },
-    dollarValue: 134.1629173227373,
+    dollarValue: 13.1629173227373,
   },
   tokenId: 18,
   contractAddress: '0xb0278e43dbd744327fe0d5d0aba4a77cbfc7fad8',
