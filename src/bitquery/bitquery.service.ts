@@ -280,18 +280,26 @@ export class BitqueryService {
     const today = new Date();
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const {
-      data: {
-        ethereum: { dexTrades, address: listBaseCurrency },
-      },
-    } = await this.queryBitquery(
-      queryLPVolume(network, yesterday.toISOString(), today.toISOString()),
-      { address, baseCurrency },
-    );
-    return {
-      volumes: dexTrades,
-      balance: listBaseCurrency,
-    };
+    try {
+      const {
+        data: {
+          ethereum: { dexTrades, address: listBaseCurrency },
+        },
+      } = await this.queryBitquery(
+        queryLPVolume(network, yesterday.toISOString(), today.toISOString()),
+        { address, baseCurrency },
+      );
+      return {
+        volumes: dexTrades,
+        balance: listBaseCurrency,
+      };
+    } catch (error) {
+      this.logger.error(`A fail with bitquery ${network}`);
+      return {
+        volumes: [],
+        balance: [],
+      };
+    }
   }
   // bitquery
   async queryBitquery(query, variables = null): Promise<any> {

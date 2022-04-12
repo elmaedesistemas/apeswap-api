@@ -20,6 +20,8 @@ import { AuthStrapiMiddleware } from './middleware/auth-strapi';
 import { BitqueryModule } from './bitquery/bitquery.module';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
+import { BillsModule } from './bills/bills.module';
+
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -44,6 +46,7 @@ import { APP_GUARD } from '@nestjs/core';
       ttl: 60,
       limit: 100,
     }),
+    BillsModule,
   ],
   controllers: [AppController],
   providers: [

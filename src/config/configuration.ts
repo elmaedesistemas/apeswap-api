@@ -68,6 +68,7 @@ export default () => ({
       process.env.ARCHIVE_BSC,
       'https://bscrpc.com/',
     ],
+    archiveNode: process.env.ARCHIVE_BSC,
     lendingMarkets: [
       {
         name: 'BTC',
@@ -100,6 +101,10 @@ export default () => ({
       {
         name: 'BNB',
         contract: '0x34878F6a484005AA90E7188a546Ea9E52b538F6f',
+      },
+      {
+        name: 'DOT',
+        contract: '0x92D106c39aC068EB113B3Ecb3273B23Cd19e6e26',
       },
     ],
     iazoExposer: '0xFdfb230bFa399EC32EA8e98c2E7E3CcD953C860A',

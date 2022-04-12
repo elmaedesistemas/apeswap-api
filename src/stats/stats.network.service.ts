@@ -354,6 +354,7 @@ export class StatsNetworkService {
     const listAddresses = arrayChunk(addresses);
     let volumesList = [];
     let balanceList = [];
+    let nullTradeAmount;
     for (let index = 0; index < listAddresses.length; index++) {
       const list = listAddresses[index];
       const { volumes, balance } = await this.bitqueryService.getDailyLPVolume(
@@ -363,9 +364,12 @@ export class StatsNetworkService {
       );
       volumesList = [...volumesList, ...volumes];
       balanceList = [...balanceList, ...balance];
+      nullTradeAmount =
+        volumesList.find((v) => v.tradeAmount === null) || false;
     }
-    if (volumesList.length === 0) {
+    if (volumesList.length === 0 || nullTradeAmount) {
       this.logger.log('Calculating from the subgraph');
+      volumesList = [];
       for (let index = 0; index < listAddresses.length; index++) {
         const list = listAddresses[index];
         const volumes = await this.subgraphService.getBulkPairData(
@@ -373,6 +377,13 @@ export class StatsNetworkService {
           chainId,
         );
         volumesList = [...volumesList, ...volumes];
+      }
+      if (nullTradeAmount) {
+        this.logger.log('Mapping for balance list from subgraph');
+        balanceList = volumesList.map((v) => ({
+          address: v.id,
+          reserveUSD: +v.reserveUSD,
+        }));
       }
     }
     let generalStats;
@@ -382,7 +393,7 @@ export class StatsNetworkService {
     }
     pools.farms.forEach((f) => {
       try {
-        const liquidity = getLiquidityFarm(balanceList, f);
+        let liquidity = getLiquidityFarm(balanceList, f);
         let tradeAmount;
         let aprLpReward;
         if (volumesList.length !== 0) {
@@ -391,7 +402,7 @@ export class StatsNetworkService {
               v.smartContract.address.address.toLowerCase() ===
               f.address.toLowerCase(),
           );
-          tradeAmount = volume?.tradeAmount ?? 0;
+          tradeAmount = Math.abs(volume?.tradeAmount) ?? 0;
           aprLpReward = (((tradeAmount * fee) / 100) * 365) / +liquidity;
         } else {
           const volume = generalStats?.farms.find(
@@ -399,6 +410,7 @@ export class StatsNetworkService {
           );
           tradeAmount = volume?.lpRewards.volume;
           aprLpReward = volume?.lpRewards.apr;
+          liquidity = +volume?.lpRewards.liquidity;
         }
 
         f.lpRewards = {
