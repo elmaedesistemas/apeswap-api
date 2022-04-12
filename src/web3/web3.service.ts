@@ -108,8 +108,6 @@ export class Web3Service {
     const archiveNode = this.config.get<string>(`${network}.archiveNode`);
     return new ethers.providers.JsonRpcProvider({
       url: archiveNode,
-      // user: 'apeswap',
-      // password: 'apeStrongBanana',
     });
   }
 
