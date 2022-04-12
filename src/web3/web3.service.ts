@@ -14,6 +14,8 @@ export class Web3Service {
     rpc: new Map<string, unknown>(),
   };
 
+  private archive = new Map<string, unknown>();
+
   constructor(private config: ConfigService) {}
 
   getHttpClient(network: Network) {
@@ -30,12 +32,29 @@ export class Web3Service {
     return this.clients.rpc[network];
   }
 
+  getArchiveRpcClient(network: Network) {
+    if (!this.archive[network]) {
+      this.archive[network] = this.createArchiveRpcClient(network);
+    }
+    return this.archive[network];
+  }
+
   getBalance(network: Network, address: string): Promise<string> {
     return this.getHttpClient(network).eth.getBalance(address);
   }
 
   getContract(network: Network, abi: any, address: string): any {
     return new (this.getHttpClient(network).eth.Contract)(abi, address);
+  }
+
+  getEthersContract(network: Network, abi: any, address: string): any {
+    const contract = new ethers.Contract(
+      address,
+      abi,
+      this.getRpcClient(network),
+    );
+
+    return contract;
   }
 
   getWallet(network: Network, privateKey: string): any {
@@ -83,6 +102,15 @@ export class Web3Service {
 
   protected createRpcClient(network: Network) {
     return new ethers.providers.JsonRpcProvider(this.getRandomNode(network));
+  }
+
+  protected createArchiveRpcClient(network: Network) {
+    const archiveNode = this.config.get<string>(`${network}.archiveNode`);
+    return new ethers.providers.JsonRpcProvider({
+      url: archiveNode,
+      // user: 'apeswap',
+      // password: 'apeStrongBanana',
+    });
   }
 
   protected getRandomNode(network: Network) {

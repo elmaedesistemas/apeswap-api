@@ -68,6 +68,7 @@ export default () => ({
       process.env.ARCHIVE_BSC,
       'https://bscrpc.com/',
     ],
+    archiveNode: process.env.ARCHIVE_BSC,
     lendingMarkets: [
       {
         name: 'BTC',

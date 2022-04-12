@@ -18,6 +18,8 @@ import { Cloudinary } from './services/cloudinary/cloudinary';
 import { MailgunModule } from './services/mailgun/mailgun.module';
 import { AuthStrapiMiddleware } from './middleware/auth-strapi';
 import { BitqueryModule } from './bitquery/bitquery.module';
+import { BillsModule } from './bills/bills.module';
+
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -38,6 +40,7 @@ import { BitqueryModule } from './bitquery/bitquery.module';
     CloudinaryModule,
     MailgunModule,
     BitqueryModule,
+    BillsModule,
   ],
   controllers: [AppController],
   providers: [AppService, Cloudinary],
