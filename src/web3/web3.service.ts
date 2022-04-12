@@ -106,12 +106,15 @@ export class Web3Service {
 
   protected createArchiveRpcClient(network: Network) {
     const archiveNode = this.config.get<string>(`${network}.archiveNode`);
-    return new ethers.providers.JsonRpcProvider(archiveNode);
+    return new ethers.providers.JsonRpcProvider({
+      url: archiveNode,
+      // user: 'apeswap',
+      // password: 'apeStrongBanana',
+    });
   }
 
   protected getRandomNode(network: Network) {
     const appNodes = this.config.get<string[]>(`${network}.appNodes`);
     return appNodes[Math.floor(Math.random() * appNodes.length)];
-    return 'https://nd-160-923-012.p2pify.com/ab711ba035f9a48bbb3bc1c2b02845ce';
   }
 }
