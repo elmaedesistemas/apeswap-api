@@ -41,12 +41,6 @@ export class StatsController {
     this.logger.debug('Called GET /stats');
     return await this.statsService.getAllStats();
   }
-  
-  @Get('/test')
-  async testRateLimit(@Request() req): Promise<any> {
-    this.logger.debug('Called GET /test');
-    return req.ip;
-  }
 
   @ApiOkResponse({
     type: GeneralStatsChain,

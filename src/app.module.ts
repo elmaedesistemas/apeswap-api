@@ -42,7 +42,7 @@ import { APP_GUARD } from '@nestjs/core';
     BitqueryModule,
     ThrottlerModule.forRoot({
       ttl: 60,
-      limit: 10,
+      limit: 100,
     }),
   ],
   controllers: [AppController],
