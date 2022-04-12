@@ -4,6 +4,7 @@ import {
   Get,
   Logger,
   Param,
+  Request,
   UseInterceptors,
   UsePipes,
   ValidationPipe,
@@ -39,6 +40,12 @@ export class StatsController {
   async getAllStats(): Promise<GeneralStats> {
     this.logger.debug('Called GET /stats');
     return await this.statsService.getAllStats();
+  }
+  
+  @Get('/test')
+  async testRateLimit(@Request() req): Promise<any> {
+    this.logger.debug('Called GET /test');
+    return req.ip;
   }
 
   @ApiOkResponse({
