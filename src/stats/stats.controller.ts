@@ -4,6 +4,7 @@ import {
   Get,
   Logger,
   Param,
+  Request,
   UseInterceptors,
   UsePipes,
   ValidationPipe,
@@ -20,6 +21,7 @@ import { GeneralStatsChain } from 'src/interfaces/stats/generalStatsChain.dto';
 import { SentryInterceptor } from 'src/interceptor/sentry.interceptor';
 import { StatsService } from './stats.service';
 import { StatsNetworkService } from './stats.network.service';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('stats')
 @Controller('stats')
@@ -71,6 +73,7 @@ export class StatsController {
     return await this.statsService.getFarmPrices();
   }
 
+  @Throttle(700, 60)
   @Get('/network/lpAprs/:chainId')
   async getLpAprs(@Param() chainIdDto: ChainIdDto): Promise<ApeLpApr> {
     this.logger.debug('Called GET /stats/network/lpAprs/:chainId');
