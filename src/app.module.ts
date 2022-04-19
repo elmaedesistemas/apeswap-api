@@ -44,7 +44,7 @@ import { BillsModule } from './bills/bills.module';
     BitqueryModule,
     ThrottlerModule.forRoot({
       ttl: 60,
-      limit: 100,
+      limit: 500,
     }),
     BillsModule,
   ],

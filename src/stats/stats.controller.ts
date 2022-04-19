@@ -45,7 +45,6 @@ export class StatsController {
   @ApiOkResponse({
     type: GeneralStatsChain,
   })
-  @Throttle(200, 60)
   @Get('/tvl')
   async getTvlStats(): Promise<GeneralStatsChain> {
     this.logger.debug('Called GET /tvl');
@@ -74,7 +73,7 @@ export class StatsController {
     return await this.statsService.getFarmPrices();
   }
 
-  @Throttle(400, 60)
+  @Throttle(700, 60)
   @Get('/network/lpAprs/:chainId')
   async getLpAprs(@Param() chainIdDto: ChainIdDto): Promise<ApeLpApr> {
     this.logger.debug('Called GET /stats/network/lpAprs/:chainId');
