@@ -142,7 +142,7 @@ export class BillsImagesService {
 
     const maturation = await this.textToCanvasImage(
       moment(billMetadata.data.expires * 1000)
-        .format('Do of MMMM, YYYY')
+        .format('Do of MMM, YYYY')
         .toString()
         .toUpperCase(),
       18,
