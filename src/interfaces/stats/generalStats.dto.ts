@@ -5,6 +5,7 @@ import { FarmStatsDto } from './farm.dto';
 import { IncentivizedPoolStats } from './incentivizedPool.dto';
 import { LendingMarket } from './lendingMarket.dto';
 import { PoolStats } from './pool.dto';
+import { TreasuryBill } from './treasuryBill.dto';
 
 export class GeneralStats {
   readonly bananaPrice: number;
@@ -23,6 +24,7 @@ export class GeneralStats {
   farms: FarmStatsDto[];
   incentivizedPools: IncentivizedPoolStats[];
   lendingData?: LendingMarket[];
+  bills?: TreasuryBill[];
 }
 
 export class GeneralStatsNetworkDto {
@@ -72,8 +74,17 @@ class LendingFeature {
   link: string;
 }
 
+class BillFeature {
+  billAddress: string;
+  discount: number;
+  lpToken: any;
+  earnToken: any;
+  link: string;
+}
+
 export class HomepageFeatures {
   farmDetails: YieldFarmingFeature[];
   poolDetails: YieldFarmingFeature[];
   lendingDetails: LendingFeature[];
+  billDetails?: BillFeature[];
 }

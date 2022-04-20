@@ -12,6 +12,7 @@ import { getBalanceNumber } from 'src/utils/math';
 import { multicallNetwork } from 'src/utils/lib/multicall';
 import { MINI_COMPLEX_REWARDER_ABI } from './abi/miniComplexRewarderAbi';
 import { OLA_LENS_ABI } from './abi/OlaCompoundLens';
+import { CustomBill_abi } from 'src/bills/abi/CustomBill.abi';
 
 export const SECONDS_PER_YEAR = new BigNumber(31536000);
 // ADDRESS GETTERS
@@ -71,8 +72,24 @@ export function lendingMarkets(): [{ name: string; contract: string }] {
   return configuration()[process.env.CHAIN_ID].lendingMarkets;
 }
 
+export function billsInfo(): [
+  {
+    type: string;
+    lpToken: string;
+    earnToken: string;
+    contract: string;
+    lpTokenName: string;
+  },
+] {
+  return configuration()[process.env.CHAIN_ID].bills;
+}
+
 export function olaCompoundLensContractWeb3(): any {
   return getContract(OLA_LENS_ABI, olaCompoundLensAddress());
+}
+
+export function customBillContractWeb3(billAddress: string): any {
+  return getContract(CustomBill_abi, billAddress);
 }
 
 export function getBananaPriceWithPoolList(poolList, prices) {
@@ -631,14 +648,12 @@ export const getLiquidityFarm = (balance, farm): number => {
   let tokenBalance = balances.balances.find(
     (b) => b.currency?.address.toLowerCase() === farm.t0Address.toLowerCase(),
   );
-  if (tokenBalance)
-    return Math.abs(tokenBalance.value*2*farm?.p0);
+  if (tokenBalance) return Math.abs(tokenBalance.value * 2 * farm?.p0);
   if (!liquidity) {
     tokenBalance = balances.balances.find(
       (b) => b.currency.address.toLowerCase() === farm.t1Address.toLowerCase(),
     );
-    if (tokenBalance)
-      return Math.abs(tokenBalance.value*2*farm?.p1);
+    if (tokenBalance) return Math.abs(tokenBalance.value * 2 * farm?.p1);
   }
   if (!liquidity) liquidity = 0;
 

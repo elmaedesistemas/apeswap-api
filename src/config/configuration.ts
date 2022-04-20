@@ -64,9 +64,9 @@ export default () => ({
     apePriceGetter: '0x5e545322b83626c745FE46144a15C00C94cBD803',
     olaCompoundLens: '0x183019dc7a8f8f1456df735862761cccf2e23009',
     appNodes: [
-      'https://rpc.ankr.com/erigonbsc',
+      //'https://rpc.ankr.com/erigonbsc',
       process.env.ARCHIVE_BSC,
-      'https://bscrpc.com/',
+      // 'https://bscrpc.com/',
     ],
     archiveNode: process.env.ARCHIVE_BSC,
     lendingMarkets: [
@@ -105,6 +105,40 @@ export default () => ({
       {
         name: 'DOT',
         contract: '0x92D106c39aC068EB113B3Ecb3273B23Cd19e6e26',
+      },
+    ],
+    bills: [
+      {
+        type: 'BANANA',
+        lpTokenName: 'BANANA-BNB',
+        earnTokenName: 'BANANA',
+        lpToken: '0xf65c1c0478efde3c19b49ecbe7acc57bb6b1d713',
+        earnToken: '0x603c7f932ed1fc6575303d8fb018fdcbb0f39a95',
+        contract: '0x8b57Fc5BE65118188D50d42fcD5614e447F7FAbE',
+      },
+      {
+        type: 'BANANA',
+        lpTokenName: 'BUSD-BNB',
+        earnTokenName: 'BANANA',
+        lpToken: '0x51e6d27fa57373d8d4c256231241053a70cb1d93',
+        earnToken: '0x603c7f932ed1fc6575303d8fb018fdcbb0f39a95',
+        contract: '0x4925AcdE0E885170801A74DEBcC8fbA91F3aE29b',
+      },
+      {
+        type: 'BANANA',
+        lpTokenName: 'USDC-BUSD',
+        earnTokenName: 'BANANA',
+        lpToken: '0xc087c78abac4a0e900a327444193dbf9ba69058e',
+        earnToken: '0x603c7f932ed1fc6575303d8fb018fdcbb0f39a95',
+        contract: '0xca1612f66292398a5df0ecadd98bb81dc264349d',
+      },
+      {
+        type: 'BANANA',
+        lpTokenName: 'ETH-BNB',
+        earnTokenName: 'BANANA',
+        lpToken: '0xa0c3ef24414ed9c9b456740128d8e63d016a9e11',
+        earnToken: '0x603c7f932ed1fc6575303d8fb018fdcbb0f39a95',
+        contract: '0xb2d516086BFc978950e40D2739c72125415441a8',
       },
     ],
     iazoExposer: '0xFdfb230bFa399EC32EA8e98c2E7E3CcD953C860A',

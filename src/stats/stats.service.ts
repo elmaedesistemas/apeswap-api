@@ -25,6 +25,7 @@ import {
   gBananaTreasury,
   masterApeContractWeb,
   olaCompoundLensContractWeb3,
+  customBillContractWeb3,
   bananaAddress,
   goldenBananaAddress,
   masterApeContractAddress,
@@ -36,6 +37,7 @@ import {
   lendingAddress,
   unitrollerAddress,
   lendingMarkets,
+  billsInfo,
 } from './utils/stats.utils';
 import { WalletStats } from 'src/interfaces/stats/walletStats.dto';
 import { WalletInvalidHttpException } from './exceptions/wallet-invalid.execption';
@@ -54,6 +56,8 @@ import { BitqueryService } from 'src/bitquery/bitquery.service';
 import Multicall from '@dopex-io/web3-multicall';
 import { calculateSupplyAndBorrowApys } from './utils/lendingUtils';
 import { LendingMarket } from 'src/interfaces/stats/lendingMarket.dto';
+import { TreasuryBill } from 'src/interfaces/stats/treasuryBill.dto';
+import { fetchPrices } from 'src/stats/utils/fetchPrices';
 
 @Injectable()
 export class StatsService {
@@ -224,7 +228,12 @@ export class StatsService {
   }
 
   async getHomepageFeatures(): Promise<HomepageFeatures> {
-    const [farmDetails, poolDetails, lendingDetails] = [[], [], []];
+    const [farmDetails, poolDetails, lendingDetails, billDetails] = [
+      [],
+      [],
+      [],
+      [],
+    ];
 
     try {
       const { data: features } = await this.httpService
@@ -235,10 +244,11 @@ export class StatsService {
         farms: featuredFarms,
         pools: featuredPools,
         lending: featuredMarkets,
+        bills: featuredBills,
       } = features[0];
 
       const allStats = await this.getAllStats();
-      const { farms, incentivizedPools: pools, lendingData } = allStats;
+      const { farms, incentivizedPools: pools, lendingData, bills } = allStats;
 
       // Filter through farms on strapi, assign applicable values from stats
       featuredFarms.forEach((element) => {
@@ -308,6 +318,26 @@ export class StatsService {
         });
       });
 
+      // Filter through bills on strapi endpoint, assign applicable values from stats
+      featuredBills.forEach((element) => {
+        const {
+          id,
+          apr,
+          name,
+          rewardTokenAddress,
+          stakedTokenAddress,
+          rewardTokenSymbol,
+        } = pools.find(({ id }) => element === id);
+
+        poolDetails.push({
+          id,
+          apr,
+          stakeToken: { name, address: stakedTokenAddress },
+          rewardToken: { name: rewardTokenSymbol, address: rewardTokenAddress },
+          link: 'https://apeswap.finance/pools',
+        });
+      });
+
       return { farmDetails, poolDetails, lendingDetails };
     } catch (error) {
       this.logger.error(
@@ -362,6 +392,63 @@ export class StatsService {
     }
 
     return lendingData;
+  }
+
+  // Gets all the data needed for Bills
+  async getAllBillsData(): Promise<TreasuryBill[]> {
+    const billsData: TreasuryBill[] = [];
+    const allBills = billsInfo();
+    const allLps = [];
+
+    // Formats all applicable LPs to be ready to be priced
+    allBills.forEach((bill) => {
+      allLps.push({
+        chainId: 56,
+        lpToken: true,
+        decimals: 18,
+        address: bill.lpToken,
+      });
+    });
+
+    // Prices all applicable LPs
+    const lpPrices: {
+      address: string;
+      price: number;
+      decimals: number;
+    }[] = await fetchPrices(
+      allLps,
+      56,
+      this.configService.getData<string>(`56.apePriceGetter`),
+    );
+
+    for (let i = 0; i < allBills.length; i++) {
+      const bill = allBills[i];
+      const { type, lpToken, earnToken, contract, lpTokenName } = bill;
+      const customBillContract = await customBillContractWeb3(contract);
+
+      const earnTokenPrice = 0.37;
+      const lp = lpPrices.find((lp) => lp.address === lpToken);
+
+      const trueBillPrice = await customBillContract.methods
+        .trueBillPrice()
+        .call();
+
+      const discount =
+        ((earnTokenPrice - lp.price * (trueBillPrice / 10 ** 18)) /
+          earnTokenPrice) *
+        100;
+
+      billsData.push({
+        type,
+        lpToken,
+        lpTokenName,
+        earnToken,
+        billAddress: contract,
+        discount,
+      });
+    }
+
+    return billsData;
   }
 
   // Function called on /stats/tvl endpoint
@@ -520,17 +607,17 @@ export class StatsService {
   }
 
   async getCalculateStats() {
-    const cachedValue = await this.cacheManager.get('calculateStats');
-    if (cachedValue) {
-      this.logger.log('Hit calculateStats() cache');
-      return cachedValue as GeneralStats;
-    }
+    // const cachedValue = await this.cacheManager.get('calculateStats');
+    // if (cachedValue) {
+    //   this.logger.log('Hit calculateStats() cache');
+    //   return cachedValue as GeneralStats;
+    // }
 
-    const infoStats = await this.verifyStats('general');
-    if (infoStats) return infoStats;
+    // const infoStats = await this.verifyStats('general');
+    // if (infoStats) return infoStats;
 
-    await this.updateCreatedAtStats();
-    this.calculateStats();
+    // await this.updateCreatedAtStats();
+    await this.calculateStats();
     const generalStats: any = await this.findGeneralStats();
     return generalStats;
   }
@@ -542,6 +629,8 @@ export class StatsService {
     const lendingData = await this.getAllLendingMarketData();
 
     const poolInfos = await this.calculatePoolInfo(masterApeContract);
+
+    const bills = await this.getAllBillsData();
 
     const [{ totalAllocPoints, rewardsPerDay }, prices] = await Promise.all([
       this.getAllocPointAndRewards(masterApeContract),
@@ -586,6 +675,7 @@ export class StatsService {
       farms: [],
       incentivizedPools: [],
       lendingData,
+      bills,
     };
 
     for (let i = 0; i < poolInfos.length; i++) {
