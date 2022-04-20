@@ -320,28 +320,18 @@ export class StatsService {
 
       // Filter through bills on strapi endpoint, assign applicable values from stats
       featuredBills.forEach((element) => {
-        const {
-          id,
-          apr,
-          name,
-          rewardTokenAddress,
-          stakedTokenAddress,
-          rewardTokenSymbol,
-        } = pools.find(({ id }) => element === id);
+        const bill = bills.find(
+          ({ billAddress }) =>
+            element.toUpperCase() === billAddress.toUpperCase(),
+        );
 
-        poolDetails.push({
-          id,
-          apr,
-          stakeToken: { name, address: stakedTokenAddress },
-          rewardToken: { name: rewardTokenSymbol, address: rewardTokenAddress },
-          link: 'https://apeswap.finance/pools',
-        });
+        billDetails.push(bill);
       });
 
-      return { farmDetails, poolDetails, lendingDetails };
+      return { farmDetails, poolDetails, lendingDetails, billDetails };
     } catch (error) {
       this.logger.error(
-        `Error when attempted to retrieve homepage featurs: ${error.message}`,
+        `Error when attempted to retrieve homepage features: ${error.message}`,
       );
     }
   }
@@ -398,25 +388,31 @@ export class StatsService {
   async getAllBillsData(): Promise<TreasuryBill[]> {
     const billsData: TreasuryBill[] = [];
     const allBills = billsInfo();
-    const allLps = [];
+    const allTokens = [];
 
     // Formats all applicable LPs to be ready to be priced
     allBills.forEach((bill) => {
-      allLps.push({
+      allTokens.push({
         chainId: 56,
         lpToken: true,
         decimals: 18,
         address: bill.lpToken,
       });
+
+      allTokens.push({
+        chainId: 56,
+        lpToken: false,
+        decimals: 18,
+        address: bill.earnToken,
+      });
     });
 
-    // Prices all applicable LPs
-    const lpPrices: {
+    const tokenPrices: {
       address: string;
       price: number;
       decimals: number;
     }[] = await fetchPrices(
-      allLps,
+      allTokens,
       56,
       this.configService.getData<string>(`56.apePriceGetter`),
     );
@@ -426,16 +422,21 @@ export class StatsService {
       const { type, lpToken, earnToken, contract, lpTokenName } = bill;
       const customBillContract = await customBillContractWeb3(contract);
 
-      const earnTokenPrice = 0.37;
-      const lp = lpPrices.find((lp) => lp.address === lpToken);
+      const lpWithPrice = tokenPrices.find(
+        (token) => token.address === lpToken,
+      );
+      const earnTokenWithPrice = tokenPrices.find(
+        (token) => token.address === earnToken,
+      );
 
       const trueBillPrice = await customBillContract.methods
         .trueBillPrice()
         .call();
 
       const discount =
-        ((earnTokenPrice - lp.price * (trueBillPrice / 10 ** 18)) /
-          earnTokenPrice) *
+        ((earnTokenWithPrice.price -
+          lpWithPrice.price * (trueBillPrice / 10 ** 18)) /
+          earnTokenWithPrice.price) *
         100;
 
       billsData.push({
@@ -607,17 +608,17 @@ export class StatsService {
   }
 
   async getCalculateStats() {
-    // const cachedValue = await this.cacheManager.get('calculateStats');
-    // if (cachedValue) {
-    //   this.logger.log('Hit calculateStats() cache');
-    //   return cachedValue as GeneralStats;
-    // }
+    const cachedValue = await this.cacheManager.get('calculateStats');
+    if (cachedValue) {
+      this.logger.log('Hit calculateStats() cache');
+      return cachedValue as GeneralStats;
+    }
 
-    // const infoStats = await this.verifyStats('general');
-    // if (infoStats) return infoStats;
+    const infoStats = await this.verifyStats('general');
+    if (infoStats) return infoStats;
 
-    // await this.updateCreatedAtStats();
-    await this.calculateStats();
+    await this.updateCreatedAtStats();
+    this.calculateStats();
     const generalStats: any = await this.findGeneralStats();
     return generalStats;
   }
