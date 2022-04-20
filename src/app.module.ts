@@ -18,6 +18,8 @@ import { Cloudinary } from './services/cloudinary/cloudinary';
 import { MailgunModule } from './services/mailgun/mailgun.module';
 import { AuthStrapiMiddleware } from './middleware/auth-strapi';
 import { BitqueryModule } from './bitquery/bitquery.module';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { BillsModule } from './bills/bills.module';
 
 @Module({
@@ -40,10 +42,21 @@ import { BillsModule } from './bills/bills.module';
     CloudinaryModule,
     MailgunModule,
     BitqueryModule,
+    ThrottlerModule.forRoot({
+      ttl: 60,
+      limit: 500,
+    }),
     BillsModule,
   ],
   controllers: [AppController],
-  providers: [AppService, Cloudinary],
+  providers: [
+    AppService, 
+    Cloudinary,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard
+    }
+  ],
 })
 export class AppModule {
   configure(consumer: MiddlewareConsumer) {
