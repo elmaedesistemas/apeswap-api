@@ -72,18 +72,6 @@ export function lendingMarkets(): [{ name: string; contract: string }] {
   return configuration()[process.env.CHAIN_ID].lendingMarkets;
 }
 
-export function billsInfo(): [
-  {
-    type: string;
-    lpToken: string;
-    earnToken: string;
-    contract: string;
-    lpTokenName: string;
-  },
-] {
-  return configuration()[process.env.CHAIN_ID].bills;
-}
-
 export function olaCompoundLensContractWeb3(): any {
   return getContract(OLA_LENS_ABI, olaCompoundLensAddress());
 }

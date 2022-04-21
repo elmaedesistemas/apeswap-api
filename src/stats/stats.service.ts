@@ -37,7 +37,6 @@ import {
   lendingAddress,
   unitrollerAddress,
   lendingMarkets,
-  billsInfo,
 } from './utils/stats.utils';
 import { WalletStats } from 'src/interfaces/stats/walletStats.dto';
 import { WalletInvalidHttpException } from './exceptions/wallet-invalid.execption';
@@ -64,6 +63,7 @@ export class StatsService {
   private readonly logger = new Logger(StatsService.name);
   private readonly chainId = parseInt(process.env.CHAIN_ID);
   private readonly POOL_LIST_URL = process.env.POOL_LIST_URL;
+  private readonly BILL_LIST_URL = process.env.BILL_LIST_URL;
   private readonly STRAPI_URL = process.env.APESWAP_STRAPI_URL;
 
   constructor(
@@ -386,70 +386,83 @@ export class StatsService {
 
   // Gets all the data needed for Bills
   async getAllBillsData(): Promise<TreasuryBill[]> {
-    const billsData: TreasuryBill[] = [];
-    const allBills = billsInfo();
-    const allTokens = [];
+    try {
+      const billsData: TreasuryBill[] = [];
+      const allTokens = [];
+      const { data: allBills } = await this.httpService
+        .get(this.BILL_LIST_URL)
+        .toPromise();
 
-    // Formats all applicable LPs to be ready to be priced
-    allBills.forEach((bill) => {
-      allTokens.push({
-        chainId: 56,
-        lpToken: true,
-        decimals: 18,
-        address: bill.lpToken,
+      // Formats all applicable LPs to be ready to be priced
+      allBills.forEach((bill) => {
+        allTokens.push({
+          chainId: 56,
+          lpToken: true,
+          decimals: 18,
+          address: bill.lpToken.address.toLowerCase(),
+        });
+
+        allTokens.push({
+          chainId: 56,
+          lpToken: false,
+          decimals: 18,
+          address: bill.rewardToken.address,
+        });
       });
 
-      allTokens.push({
-        chainId: 56,
-        lpToken: false,
-        decimals: 18,
-        address: bill.earnToken,
-      });
-    });
-
-    const tokenPrices: {
-      address: string;
-      price: number;
-      decimals: number;
-    }[] = await fetchPrices(
-      allTokens,
-      56,
-      this.configService.getData<string>(`56.apePriceGetter`),
-    );
-
-    for (let i = 0; i < allBills.length; i++) {
-      const bill = allBills[i];
-      const { type, lpToken, earnToken, contract, lpTokenName } = bill;
-      const customBillContract = await customBillContractWeb3(contract);
-
-      const lpWithPrice = tokenPrices.find(
-        (token) => token.address === lpToken,
-      );
-      const earnTokenWithPrice = tokenPrices.find(
-        (token) => token.address === earnToken,
+      const tokenPrices: {
+        address: string;
+        price: number;
+        decimals: number;
+      }[] = await fetchPrices(
+        allTokens,
+        56,
+        this.configService.getData<string>(`56.apePriceGetter`),
       );
 
-      const trueBillPrice = await customBillContract.methods
-        .trueBillPrice()
-        .call();
+      for (let i = 0; i < allBills.length; i++) {
+        const bill = allBills[i];
+        const {
+          billType: type,
+          lpToken,
+          rewardToken: earnToken,
+          contractAddress: contract,
+        } = bill;
+        const customBillContract = await customBillContractWeb3(contract);
 
-      const discount =
-        ((earnTokenWithPrice.price -
-          lpWithPrice.price * (trueBillPrice / 10 ** 18)) /
-          earnTokenWithPrice.price) *
-        100;
+        const lpWithPrice = tokenPrices.find(
+          (token) =>
+            token.address.toLowerCase() === lpToken.address.toLowerCase(),
+        );
+        const earnTokenWithPrice = tokenPrices.find(
+          (token) =>
+            token.address.toLowerCase() === earnToken.address.toLowerCase(),
+        );
 
-      billsData.push({
-        type,
-        lpToken,
-        lpTokenName,
-        earnToken,
-        billAddress: contract,
-        discount,
-      });
+        const trueBillPrice = await customBillContract.methods
+          .trueBillPrice()
+          .call();
+
+        const discount =
+          ((earnTokenWithPrice.price -
+            lpWithPrice.price * (trueBillPrice / 10 ** 18)) /
+            earnTokenWithPrice.price) *
+          100;
+
+        billsData.push({
+          type,
+          lpToken: lpToken.address,
+          lpTokenName: lpToken.symbol,
+          earnToken: earnToken.address,
+          billAddress: contract,
+          discount,
+        });
+      }
+
+      return billsData;
+    } catch (err) {
+      this.logger.error(err.message);
     }
-
-    return billsData;
   }
 
   // Function called on /stats/tvl endpoint
