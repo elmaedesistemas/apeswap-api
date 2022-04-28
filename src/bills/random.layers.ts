@@ -326,7 +326,7 @@ export function generateBnWAttributes(billData: BillData) {
 }
 
 export function generateAttributes(billData: BillData) {
-  if (billData.dollarValue < 25) return generateBnWAttributes(billData);
+  if (billData.dollarValue < 50) return generateBnWAttributes(billData);
   const attributes: Attribute[] = [
     {
       trait_type: 'Principal Token',
@@ -349,10 +349,13 @@ export function generateAttributes(billData: BillData) {
       value: 'V2',
     },
   ];
+  // Delete dollarValue as it can change over time, messing with the deterministic intent of this generation
+  const copy = { ...billData };
+  delete copy.dollarValue;
   for (const key in layers) {
     attributes.push({
       trait_type: key,
-      value: weightedRandom(layers[key], JSON.stringify(billData) + key),
+      value: weightedRandom(layers[key], JSON.stringify(copy) + key),
     });
   }
   return attributes;
