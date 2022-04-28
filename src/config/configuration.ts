@@ -63,7 +63,11 @@ export default () => ({
     },
     apePriceGetter: '0x5e545322b83626c745FE46144a15C00C94cBD803',
     olaCompoundLens: '0x183019dc7a8f8f1456df735862761cccf2e23009',
-    appNodes: ['https://rpc.ankr.com/erigonbsc', process.env.ARCHIVE_BSC],
+    appNodes: [
+      // 'https://rpc.ankr.com/erigonbsc',
+      // 'https://bscrpc.com',
+      process.env.NODEREAL_NODE,
+    ],
     archiveNode: process.env.ARCHIVE_BSC,
     lendingMarkets: [
       {
