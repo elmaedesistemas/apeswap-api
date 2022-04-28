@@ -155,15 +155,14 @@ export class BillsService {
         this.billCreations[billData.createTransactionHash] = this.createNewBill(
           billData,
         );
-        billMetadata = await this.billCreations[
-          billData.createTransactionHash
-        ].catch(() => {
-          delete this.billCreations[billData.createTransactionHash];
-          throw new InternalServerErrorException();
-        });
-        delete this.billCreations[billData.createTransactionHash];
-        delete billMetadata._id;
       }
+      billMetadata = await this.billCreations[
+        billData.createTransactionHash
+      ].catch(() => {
+        delete this.billCreations[billData.createTransactionHash];
+        throw new InternalServerErrorException();
+      });
+      delete this.billCreations[billData.createTransactionHash];
     }
     return billMetadata;
   }
