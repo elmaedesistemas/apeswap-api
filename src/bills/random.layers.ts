@@ -7,35 +7,35 @@ export const Legend = [
     weight: 1,
   },
   {
-    item: 'Vitalik',
+    item: 'Michael Saylor',
     weight: 2,
   },
   {
-    item: 'CZ',
+    item: 'Hal Finney',
     weight: 3,
   },
   {
-    item: 'Elizabeth Stark',
+    item: 'Vitalik',
     weight: 4,
   },
   {
-    item: 'John Mcafee',
+    item: 'CZ',
     weight: 5,
   },
   {
-    item: 'Sam Bankman-Fried',
+    item: 'Cobie',
     weight: 6,
   },
   {
-    item: 'Hal Finney',
+    item: 'Sam Bankman-Fried',
     weight: 7,
   },
   {
-    item: 'Michael Saylor',
+    item: 'John Mcafee',
     weight: 8,
   },
   {
-    item: 'Cobie',
+    item: 'Elizabeth Stark',
     weight: 9,
   },
   {
@@ -50,58 +50,58 @@ export const Location = [
     weight: 1,
   },
   {
-    item: 'Miami',
+    item: 'Satoshi Statue',
     weight: 2,
   },
   {
-    item: 'Zug, Switzerland (Crypto Valley)',
+    item: 'Bitcoin Beach',
     weight: 3,
   },
   {
-    item: 'Satoshi Statue',
+    item: 'El Salvador (Volcano)',
     weight: 4,
   },
   {
-    item: 'El Salvador (Volcano)',
+    item: 'Zug, Switzerland (Crypto Valley)',
     weight: 5,
   },
   {
-    item: 'Bitcoin Beach',
+    item: 'Sandbox',
     weight: 6,
   },
   {
-    item: 'Sandbox',
+    item: 'Decentraland',
     weight: 7,
   },
   {
-    item: 'Decentraland',
+    item: 'Crypto Twitter',
     weight: 8,
   },
   {
-    item: 'Crypto Twitter',
+    item: 'Crypto.com Arena',
     weight: 9,
   },
   {
-    item: 'Crypto.com Arena',
+    item: 'Miami',
     weight: 10,
   },
 ];
 
 export const Moment = [
   {
-    item: 'The Genesis Block',
+    item: 'Bitcoin Pizza',
     weight: 1,
   },
   {
-    item: 'Bitcoin Pizza',
+    item: 'Bitcoin Hard Fork',
     weight: 2,
   },
   {
-    item: 'Bitcoin Hard Fork',
+    item: 'The Genesis Block',
     weight: 3,
   },
   {
-    item: 'Beeples $69 million NFT Sale',
+    item: 'DeFi Summer',
     weight: 4,
   },
   {
@@ -109,23 +109,23 @@ export const Moment = [
     weight: 5,
   },
   {
-    item: 'The DAO Hack',
+    item: 'Beeples $69 million NFT Sale',
     weight: 6,
   },
   {
-    item: 'Tesla Accepts Bitcoin',
+    item: 'The DAO Hack',
     weight: 7,
   },
   {
-    item: 'Mt. Gox Hack',
+    item: 'Tesla Accepts Bitcoin',
     weight: 8,
   },
   {
-    item: '$1 Trillion Crypto Market Cap',
+    item: 'Mt. Gox Hack',
     weight: 9,
   },
   {
-    item: 'DeFi Summer',
+    item: '$1 Trillion Crypto Market Cap',
     weight: 10,
   },
 ];
@@ -136,31 +136,31 @@ export const Trend = [
     weight: 1,
   },
   {
-    item: 'Metaverse',
+    item: 'Meme Coins',
     weight: 2,
   },
   {
-    item: 'Multi-Chain',
+    item: 'NFTs',
     weight: 3,
   },
   {
-    item: 'DeFi',
+    item: 'GameFi',
     weight: 4,
   },
   {
-    item: 'NFTs',
+    item: 'DeFi',
     weight: 5,
   },
   {
-    item: 'ICOs',
+    item: 'Metaverse',
     weight: 6,
   },
   {
-    item: 'GameFi',
+    item: 'Multi-Chain',
     weight: 7,
   },
   {
-    item: 'Meme Coins',
+    item: 'ICOs',
     weight: 8,
   },
   {
@@ -175,35 +175,35 @@ export const Trend = [
 
 export const Innovation = [
   {
-    item: 'Minning Rig',
+    item: 'Bitcoin',
     weight: 1,
   },
   {
-    item: 'Unisocks',
+    item: 'Proof of Work',
     weight: 2,
   },
   {
-    item: 'Layer 2',
+    item: 'Smart Contracts',
     weight: 3,
   },
   {
-    item: 'Hardware Wallets',
+    item: 'Unisocks',
     weight: 4,
   },
   {
-    item: 'Smart Contracts',
+    item: 'Hardware Wallets',
     weight: 5,
   },
   {
-    item: 'Crypto ATMs',
+    item: 'Minning Rig',
     weight: 6,
   },
   {
-    item: 'Stablecoins',
+    item: 'Crypto ATMs',
     weight: 7,
   },
   {
-    item: 'Proof of Work',
+    item: 'Layer 2',
     weight: 8,
   },
   {
@@ -211,7 +211,7 @@ export const Innovation = [
     weight: 9,
   },
   {
-    item: 'Bitcoin',
+    item: 'Stablecoins',
     weight: 10,
   },
 ];
