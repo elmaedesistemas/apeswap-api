@@ -12,7 +12,7 @@ import { BillNft_abi } from './abi/BillNft.abi';
 import { CustomBill_abi } from './abi/CustomBill.abi';
 import { BillsImagesService } from './bills.images.service';
 import { BillData, BillTerms } from './interface/billData.interface';
-import { generateV1Attributes } from './random.layers';
+import { generateAttributes, generateV1Attributes } from './random.layers';
 import {
   BillsMetadata,
   BillsMetadataDocument,
@@ -233,10 +233,15 @@ export class BillsService {
   }
 
   async createNewBill(billData: BillData) {
+    const attributes =
+      billData.billNftId <= 350
+        ? generateV1Attributes(billData)
+        : generateAttributes(billData);
+
     const newBillMetadata: BillsMetadata = {
       name: `Treasury Bill #${billData.billNftId}`,
       description: `Treasury Bill #${billData.billNftId}`,
-      attributes: generateV1Attributes(billData),
+      attributes,
       data: billData,
       tokenId: billData.billNftId,
       contractAddress: this.billNftContractAddress,
