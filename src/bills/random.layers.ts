@@ -46,7 +46,7 @@ export const Legend = [
 
 export const Location = [
   {
-    item: 'The Silk Road',
+    item: 'Silk Road',
     weight: 1,
   },
   {
@@ -54,7 +54,7 @@ export const Location = [
     weight: 2,
   },
   {
-    item: 'CZug, Switzerland (Crypto Valley)',
+    item: 'Zug, Switzerland (Crypto Valley)',
     weight: 3,
   },
   {
@@ -74,7 +74,7 @@ export const Location = [
     weight: 7,
   },
   {
-    item: 'Decentralandr',
+    item: 'Decentraland',
     weight: 8,
   },
   {
@@ -82,7 +82,7 @@ export const Location = [
     weight: 9,
   },
   {
-    item: 'Discord',
+    item: 'Crypto.com Arena',
     weight: 10,
   },
 ];
@@ -168,7 +168,7 @@ export const Trend = [
     weight: 9,
   },
   {
-    item: 'Lending',
+    item: 'Web 3.0',
     weight: 10,
   },
 ];
@@ -199,7 +199,7 @@ export const Innovation = [
     weight: 6,
   },
   {
-    item: 'Stablcoins',
+    item: 'Stablecoins',
     weight: 7,
   },
   {
@@ -210,14 +210,18 @@ export const Innovation = [
     item: 'Delegated Proof of Stake',
     weight: 9,
   },
+  {
+    item: 'Bitcoin',
+    weight: 10,
+  },
 ];
 
 const layers = {
-  Legend,
-  Location,
-  Moment,
-  Trend,
-  Innovation,
+  ['The Legend']: Legend,
+  ['The Location']: Location,
+  ['The Moment']: Moment,
+  ['The Trend']: Trend,
+  ['The Innovation']: Innovation,
 };
 
 export function generateV1Attributes(billData: BillData) {
@@ -275,7 +279,7 @@ export function generateV1Attributes(billData: BillData) {
   return attributes;
 }
 
-export function generateAttributes(billData: BillData) {
+export function generateBnWAttributes(billData: BillData) {
   const attributes: Attribute[] = [
     {
       trait_type: 'Principal Token',
@@ -295,22 +299,60 @@ export function generateAttributes(billData: BillData) {
     },
     {
       trait_type: 'Version',
-      value: 'V1',
-    },
-    // TODO: TBD
-    {
-      trait_type: 'Deposit Amount',
-      value: billData.deposit.toString(),
+      value: 'V2',
     },
     {
-      trait_type: 'Payout Amount',
-      value: billData.payout.toString(),
+      trait_type: 'The Legend',
+      value: `Obie Dobo - Black & White`,
+    },
+    {
+      trait_type: 'The Location',
+      value: 'The Jungle - Black & White',
+    },
+    {
+      trait_type: 'The Moment',
+      value: 'Youthful Flute - Black & White',
+    },
+    {
+      trait_type: 'The Trend',
+      value: 'BANANA - Black & White',
+    },
+    {
+      trait_type: 'The Innovation',
+      value: 'Memes - Black & White',
+    },
+  ];
+  return attributes;
+}
+
+export function generateAttributes(billData: BillData) {
+  if (billData.dollarValue < 25) return generateBnWAttributes(billData);
+  const attributes: Attribute[] = [
+    {
+      trait_type: 'Principal Token',
+      value: billData.principalToken,
+    },
+    {
+      trait_type: 'Payout Token',
+      value: billData.payoutToken,
+    },
+    {
+      trait_type: 'Vesting Period',
+      value: billData.vestingPeriodSeconds.toString(),
+    },
+    {
+      trait_type: 'Type',
+      value: billData.type,
+    },
+    {
+      trait_type: 'Version',
+      value: 'V2',
     },
   ];
   for (const key in layers) {
     attributes.push({
       trait_type: key,
-      value: weightedRandom(layers[key], JSON.stringify(billData)),
+      value: weightedRandom(layers[key], JSON.stringify(billData) + key),
     });
   }
   return attributes;

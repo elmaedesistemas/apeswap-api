@@ -36,3 +36,6 @@ lerna-debug.log*
 
 # Config
 .env
+
+# tests
+/src/bills/test-gen
