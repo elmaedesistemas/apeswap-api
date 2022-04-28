@@ -195,7 +195,7 @@ export const Innovation = [
     weight: 5,
   },
   {
-    item: 'Minning Rig',
+    item: 'Mining Rig',
     weight: 6,
   },
   {
