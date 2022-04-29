@@ -2,6 +2,8 @@ import { HttpModule } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BillsImagesService } from './bills.images.service';
 import { BillMetadata } from './interface/billData.interface';
+import { generateAttributes } from './random.layers';
+import { cloneDeep, random } from 'lodash';
 
 const MockMetadata: BillMetadata = {
   attributes: [
@@ -78,9 +80,19 @@ const MockMetadata: BillMetadata = {
     },
     dollarValue: 13.1629173227373,
   },
-  tokenId: 18,
+  tokenId: 1800,
   contractAddress: '0xb0278e43dbd744327fe0d5d0aba4a77cbfc7fad8',
 };
+
+function randomBillAmount() {
+  const type = random(1, 6);
+  if (type === 1) return random(1, 25, true);
+  if (type === 2) return random(25, 100, true);
+  if (type === 3) return random(100, 1000, true);
+  if (type === 4) return random(1000, 10000, true);
+  if (type === 5) return random(10000, 100000, true);
+  if (type === 6) return random(100000, 500000, true);
+}
 
 describe('Bills.ImagesService', () => {
   let service: BillsImagesService;
@@ -90,12 +102,31 @@ describe('Bills.ImagesService', () => {
       imports: [HttpModule],
       providers: [BillsImagesService],
     }).compile();
-
+    jest.setTimeout(60 * 1000 * 30);
     service = module.get<BillsImagesService>(BillsImagesService);
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('Should get layers with metadata', async () => {
+    MockMetadata.attributes = generateAttributes(MockMetadata.data);
+    const layers = await service.getLayers(MockMetadata);
+    console.log(layers);
+  });
+
+  it('Should produce image with metadata', async () => {
+    const creations = [];
+    for (let i = 1; i <= 5000; i++) {
+      const NewData = cloneDeep(MockMetadata);
+      NewData.data.payout = randomBillAmount();
+      NewData.data.dollarValue = NewData.data.payout * 0.5;
+      NewData.attributes = generateAttributes(NewData.data);
+      console.log(`Pushed image ${i}`);
+      creations.push(service.createBillImageWithMetadata(NewData));
+    }
+    await Promise.all(creations);
   });
 
   it('Should generate bill V1 image layers', async () => {

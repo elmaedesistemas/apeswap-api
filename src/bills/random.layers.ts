@@ -7,35 +7,35 @@ export const Legend = [
     weight: 1,
   },
   {
-    item: 'Vitalik',
+    item: 'Michael Saylor',
     weight: 2,
   },
   {
-    item: 'CZ',
+    item: 'Hal Finney',
     weight: 3,
   },
   {
-    item: 'Elizabeth Stark',
+    item: 'Vitalik',
     weight: 4,
   },
   {
-    item: 'John Mcafee',
+    item: 'CZ',
     weight: 5,
   },
   {
-    item: 'Sam Bankman-Fried',
+    item: 'Cobie',
     weight: 6,
   },
   {
-    item: 'Hal Finney',
+    item: 'Sam Bankman-Fried',
     weight: 7,
   },
   {
-    item: 'Michael Saylor',
+    item: 'John Mcafee',
     weight: 8,
   },
   {
-    item: 'Cobie',
+    item: 'Elizabeth Stark',
     weight: 9,
   },
   {
@@ -46,62 +46,62 @@ export const Legend = [
 
 export const Location = [
   {
-    item: 'The Silk Road',
+    item: 'Silk Road',
     weight: 1,
   },
   {
-    item: 'Miami',
+    item: 'Satoshi Statue',
     weight: 2,
   },
   {
-    item: 'CZug, Switzerland (Crypto Valley)',
+    item: 'Bitcoin Beach',
     weight: 3,
   },
   {
-    item: 'Satoshi Statue',
+    item: 'El Salvador (Volcano)',
     weight: 4,
   },
   {
-    item: 'El Salvador (Volcano)',
+    item: 'Zug, Switzerland (Crypto Valley)',
     weight: 5,
   },
   {
-    item: 'Bitcoin Beach',
+    item: 'Sandbox',
     weight: 6,
   },
   {
-    item: 'Sandbox',
+    item: 'Decentraland',
     weight: 7,
   },
   {
-    item: 'Decentralandr',
+    item: 'Crypto Twitter',
     weight: 8,
   },
   {
-    item: 'Crypto Twitter',
+    item: 'Crypto.com Arena',
     weight: 9,
   },
   {
-    item: 'Discord',
+    item: 'Miami',
     weight: 10,
   },
 ];
 
 export const Moment = [
   {
-    item: 'The Genesis Block',
+    item: 'Bitcoin Pizza',
     weight: 1,
   },
   {
-    item: 'Bitcoin Pizza',
+    item: 'Bitcoin Hard Fork',
     weight: 2,
   },
   {
-    item: 'Bitcoin Hard Fork',
+    item: 'The Genesis Block',
     weight: 3,
   },
   {
-    item: 'Beeples $69 million NFT Sale',
+    item: 'DeFi Summer',
     weight: 4,
   },
   {
@@ -109,23 +109,23 @@ export const Moment = [
     weight: 5,
   },
   {
-    item: 'The DAO Hack',
+    item: 'Beeples $69 million NFT Sale',
     weight: 6,
   },
   {
-    item: 'Tesla Accepts Bitcoin',
+    item: 'The DAO Hack',
     weight: 7,
   },
   {
-    item: 'Mt. Gox Hack',
+    item: 'Tesla Accepts Bitcoin',
     weight: 8,
   },
   {
-    item: '$1 Trillion Crypto Market Cap',
+    item: 'Mt. Gox Hack',
     weight: 9,
   },
   {
-    item: 'DeFi Summer',
+    item: '$1 Trillion Crypto Market Cap',
     weight: 10,
   },
 ];
@@ -136,31 +136,31 @@ export const Trend = [
     weight: 1,
   },
   {
-    item: 'Metaverse',
+    item: 'Meme Coins',
     weight: 2,
   },
   {
-    item: 'Multi-Chain',
+    item: 'NFTs',
     weight: 3,
   },
   {
-    item: 'DeFi',
+    item: 'GameFi',
     weight: 4,
   },
   {
-    item: 'NFTs',
+    item: 'DeFi',
     weight: 5,
   },
   {
-    item: 'ICOs',
+    item: 'Metaverse',
     weight: 6,
   },
   {
-    item: 'GameFi',
+    item: 'Multi-Chain',
     weight: 7,
   },
   {
-    item: 'Meme Coins',
+    item: 'ICOs',
     weight: 8,
   },
   {
@@ -168,56 +168,60 @@ export const Trend = [
     weight: 9,
   },
   {
-    item: 'Lending',
+    item: 'Web 3.0',
     weight: 10,
   },
 ];
 
 export const Innovation = [
   {
-    item: 'Minning Rig',
+    item: 'Bitcoin',
     weight: 1,
   },
   {
-    item: 'Unisocks',
+    item: 'Proof of Work',
     weight: 2,
   },
   {
-    item: 'Layer 2',
+    item: 'Smart Contracts',
     weight: 3,
   },
   {
-    item: 'Hardware Wallets',
+    item: 'Unisocks',
     weight: 4,
   },
   {
-    item: 'Smart Contracts',
+    item: 'Hardware Wallets',
     weight: 5,
   },
   {
-    item: 'Crypto ATMs',
+    item: 'Mining Rig',
     weight: 6,
   },
   {
-    item: 'Stablcoins',
+    item: 'Crypto ATMs',
     weight: 7,
   },
   {
-    item: 'Proof of Work',
+    item: 'Layer 2',
     weight: 8,
   },
   {
     item: 'Delegated Proof of Stake',
     weight: 9,
   },
+  {
+    item: 'Stablecoins',
+    weight: 10,
+  },
 ];
 
 const layers = {
-  Legend,
-  Location,
-  Moment,
-  Trend,
-  Innovation,
+  ['The Legend']: Legend,
+  ['The Location']: Location,
+  ['The Moment']: Moment,
+  ['The Trend']: Trend,
+  ['The Innovation']: Innovation,
 };
 
 export function generateV1Attributes(billData: BillData) {
@@ -275,7 +279,7 @@ export function generateV1Attributes(billData: BillData) {
   return attributes;
 }
 
-export function generateAttributes(billData: BillData) {
+export function generateBnWAttributes(billData: BillData) {
   const attributes: Attribute[] = [
     {
       trait_type: 'Principal Token',
@@ -295,22 +299,63 @@ export function generateAttributes(billData: BillData) {
     },
     {
       trait_type: 'Version',
-      value: 'V1',
-    },
-    // TODO: TBD
-    {
-      trait_type: 'Deposit Amount',
-      value: billData.deposit.toString(),
+      value: 'V2',
     },
     {
-      trait_type: 'Payout Amount',
-      value: billData.payout.toString(),
+      trait_type: 'The Legend',
+      value: `Obie Dobo - Black & White`,
+    },
+    {
+      trait_type: 'The Location',
+      value: 'The Jungle - Black & White',
+    },
+    {
+      trait_type: 'The Moment',
+      value: 'Youthful Flute - Black & White',
+    },
+    {
+      trait_type: 'The Trend',
+      value: 'BANANA - Black & White',
+    },
+    {
+      trait_type: 'The Innovation',
+      value: 'Memes - Black & White',
     },
   ];
+  return attributes;
+}
+
+export function generateAttributes(billData: BillData) {
+  if (billData.dollarValue < 50) return generateBnWAttributes(billData);
+  const attributes: Attribute[] = [
+    {
+      trait_type: 'Principal Token',
+      value: billData.principalToken,
+    },
+    {
+      trait_type: 'Payout Token',
+      value: billData.payoutToken,
+    },
+    {
+      trait_type: 'Vesting Period',
+      value: billData.vestingPeriodSeconds.toString(),
+    },
+    {
+      trait_type: 'Type',
+      value: billData.type,
+    },
+    {
+      trait_type: 'Version',
+      value: 'V2',
+    },
+  ];
+  // Delete dollarValue as it can change over time, messing with the deterministic intent of this generation
+  const copy = { ...billData };
+  delete copy.dollarValue;
   for (const key in layers) {
     attributes.push({
       trait_type: key,
-      value: weightedRandom(layers[key], JSON.stringify(billData)),
+      value: weightedRandom(layers[key], JSON.stringify(copy) + key),
     });
   }
   return attributes;

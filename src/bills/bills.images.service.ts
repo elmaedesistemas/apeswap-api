@@ -8,6 +8,7 @@ import {
 } from 'ultimate-text-to-image';
 import path from 'path';
 import svg2img from 'svg2img';
+import { groupBy, mapValues } from 'lodash';
 import { writeFile, readFile, readdir } from 'fs/promises';
 import moment from 'moment';
 import { BillMetadata } from './interface/billData.interface';
@@ -67,39 +68,7 @@ export class BillsImagesService {
   }
 
   async createBillImageWithMetadata(billMetadata: BillMetadata) {
-    let billBorder = 'bronze';
-    if (
-      billMetadata.data.dollarValue >= 100 &&
-      billMetadata.data.dollarValue < 1000
-    ) {
-      billBorder = 'silver';
-    } else if (
-      billMetadata.data.dollarValue >= 1000 &&
-      billMetadata.data.dollarValue < 10000
-    ) {
-      billBorder = 'gold';
-    } else if (billMetadata.data.dollarValue >= 10000) {
-      billBorder = 'diamond';
-    }
-
-    const baseLayers = [
-      './v1/location.png',
-      './v1/innovation.png',
-      `./v1/legend-${billBorder}.png`,
-      './v1/moment.png',
-      './v1/rectangles.png',
-      './v1/stamp.png',
-      './v1/trend.png',
-    ];
-
-    // TODO: Get all token images
-    if (
-      this.supportedTokenImages.includes(billMetadata.data.token1.symbol) &&
-      this.supportedTokenImages.includes(billMetadata.data.token0.symbol)
-    ) {
-      baseLayers.push(`./tokens/${billMetadata.data.token0.symbol}.png`);
-      baseLayers.push(`./tokens/${billMetadata.data.token1.symbol}.png`);
-    }
+    const baseLayers = this.getLayers(billMetadata);
 
     const layers = await this.createLayers(baseLayers);
 
@@ -190,9 +159,85 @@ export class BillsImagesService {
       ],
     })
       .render()
-      // .toFile(path.join(__dirname, `image-${Math.random()}.png`));
+      // .toFile(path.join(__dirname, `test-gen/image-${Math.random()}.png`));
       .toStream();
     return textToImage;
+  }
+
+  getLayers(billMetadata: BillMetadata) {
+    let billBorder = 'bnw';
+    if (
+      billMetadata.data.dollarValue >= 50 &&
+      billMetadata.data.dollarValue < 250
+    ) {
+      billBorder = 'bronze';
+    } else if (
+      billMetadata.data.dollarValue >= 100 &&
+      billMetadata.data.dollarValue < 1000
+    ) {
+      billBorder = 'silver';
+    } else if (
+      billMetadata.data.dollarValue >= 1000 &&
+      billMetadata.data.dollarValue < 10000
+    ) {
+      billBorder = 'gold';
+    } else if (
+      billMetadata.data.dollarValue >= 10000 &&
+      billMetadata.data.dollarValue < 100000
+    ) {
+      billBorder = 'diamond';
+    } else if (billMetadata.data.dollarValue >= 100000) {
+      billBorder = 'rainbow';
+    }
+    let baseLayers;
+
+    const layerAttributes = mapValues(
+      groupBy(billMetadata.attributes, 'trait_type'),
+      (arr) => arr[0].value.replace(/ /g, '_').toLowerCase(),
+    );
+
+    if (billMetadata.tokenId <= 450)
+      baseLayers = [
+        './v1/location.png',
+        './v1/innovation.png',
+        `./v1/legend-${billBorder}.png`,
+        './v1/moment.png',
+        './v1/rectangles.png',
+        './v1/stamp.png',
+        './v1/trend.png',
+        `./tokens/${billMetadata.data.token0.symbol}.png`,
+        `./tokens/${billMetadata.data.token1.symbol}.png`,
+      ];
+    else {
+      if (billBorder === 'bnw') {
+        baseLayers = [
+          `./bnw/bnw_jungle.png`,
+          `./bnw/bnw_obie_playing_flute.png`,
+          `./bnw/bnw_obie.png`,
+          `./bnw/bnw_jean_claude_dancing.png`,
+          `./bnw/bnw_rectangles.png`,
+          `./bnw/bnw_v2.png`,
+          `./bnw/bnw_ribbon.png`,
+          `./bnw/bnw_bananas.png`,
+        ];
+        baseLayers.push(`./bnw/${billMetadata.data.token0.symbol}.png`);
+        baseLayers.push(`./bnw/${billMetadata.data.token1.symbol}.png`);
+      } else
+        baseLayers = [
+          `./v2/${layerAttributes['The Location']}.png`,
+          `./v2/${layerAttributes['The Innovation']}.png`,
+          `./v2/${layerAttributes['The Legend']}_${billBorder}.png`,
+          `./v2/${layerAttributes['The Moment']}.png`,
+          `./v2/rectangles.png`,
+          `./v2/v2.png`,
+          `./v2/ribbon.png`,
+          `./v2/${layerAttributes['The Trend']}.png`,
+          `./tokens/${billMetadata.data.token0.symbol}.png`,
+          `./tokens/${billMetadata.data.token1.symbol}.png`,
+        ];
+    }
+
+    return baseLayers;
   }
 
   async createLayers(layers) {
