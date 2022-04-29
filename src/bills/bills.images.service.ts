@@ -168,7 +168,7 @@ export class BillsImagesService {
     let billBorder = 'bnw';
     if (
       billMetadata.data.dollarValue >= 50 &&
-      billMetadata.data.dollarValue < 100
+      billMetadata.data.dollarValue < 250
     ) {
       billBorder = 'bronze';
     } else if (
