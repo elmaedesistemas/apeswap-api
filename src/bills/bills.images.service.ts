@@ -205,6 +205,8 @@ export class BillsImagesService {
         './v1/rectangles.png',
         './v1/stamp.png',
         './v1/trend.png',
+        `./tokens/${billMetadata.data.token0.symbol}.png`,
+        `./tokens/${billMetadata.data.token1.symbol}.png`,
       ];
     else {
       if (billBorder === 'bnw') {
@@ -230,17 +232,11 @@ export class BillsImagesService {
           `./v2/v2.png`,
           `./v2/ribbon.png`,
           `./v2/${layerAttributes['The Trend']}.png`,
+          `./tokens/${billMetadata.data.token0.symbol}.png`,
+          `./tokens/${billMetadata.data.token1.symbol}.png`,
         ];
     }
 
-    if (
-      this.supportedTokenImages.includes(billMetadata.data.token1.symbol) &&
-      this.supportedTokenImages.includes(billMetadata.data.token0.symbol) &&
-      billBorder !== 'bnw'
-    ) {
-      baseLayers.push(`./tokens/${billMetadata.data.token0.symbol}.png`);
-      baseLayers.push(`./tokens/${billMetadata.data.token1.symbol}.png`);
-    }
     return baseLayers;
   }
 
