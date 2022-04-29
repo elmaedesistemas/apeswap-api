@@ -1,4 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import BigNumber from 'bignumber.js';
@@ -12,7 +16,7 @@ import { BillNft_abi } from './abi/BillNft.abi';
 import { CustomBill_abi } from './abi/CustomBill.abi';
 import { BillsImagesService } from './bills.images.service';
 import { BillData, BillTerms } from './interface/billData.interface';
-import { generateV1Attributes } from './random.layers';
+import { generateAttributes, generateV1Attributes } from './random.layers';
 import {
   BillsMetadata,
   BillsMetadataDocument,
@@ -148,9 +152,17 @@ export class BillsService {
       this.logger.log(`Loading bill ${tokenId}`);
       const billData = await this.getBillDataWithNftId({ tokenId });
       if (!this.billCreations[billData.createTransactionHash]) {
-        billMetadata = await this.createNewBill(billData);
-      } else
-        billMetadata = await this.billCreations[billData.createTransactionHash];
+        this.billCreations[billData.createTransactionHash] = this.createNewBill(
+          billData,
+        );
+      }
+      billMetadata = await this.billCreations[
+        billData.createTransactionHash
+      ].catch(() => {
+        delete this.billCreations[billData.createTransactionHash];
+        throw new InternalServerErrorException();
+      });
+      delete this.billCreations[billData.createTransactionHash];
     }
     return billMetadata;
   }
@@ -226,17 +238,22 @@ export class BillsService {
         this.billCreations[event.transactionHash] = this.createNewBill(
           billData,
         );
-        await this.billCreations[event.transactionHash];
+        await this.billCreations[event.transactionHash].catch();
         delete this.billCreations[event.transactionHash];
       }
     });
   }
 
   async createNewBill(billData: BillData) {
+    const attributes =
+      billData.billNftId <= 350
+        ? generateV1Attributes(billData)
+        : generateAttributes(billData);
+
     const newBillMetadata: BillsMetadata = {
       name: `Treasury Bill #${billData.billNftId}`,
       description: `Treasury Bill #${billData.billNftId}`,
-      attributes: generateV1Attributes(billData),
+      attributes,
       data: billData,
       tokenId: billData.billNftId,
       contractAddress: this.billNftContractAddress,
