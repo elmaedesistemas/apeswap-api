@@ -196,7 +196,7 @@ export class BillsImagesService {
       (arr) => arr[0].value.replace(/ /g, '_').toLowerCase(),
     );
 
-    if (billMetadata.tokenId <= 350)
+    if (billMetadata.tokenId <= 450)
       baseLayers = [
         './v1/location.png',
         './v1/innovation.png',

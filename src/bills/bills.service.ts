@@ -246,7 +246,7 @@ export class BillsService {
 
   async createNewBill(billData: BillData) {
     const attributes =
-      billData.billNftId <= 350
+      billData.billNftId <= 450
         ? generateV1Attributes(billData)
         : generateAttributes(billData);
 
