@@ -410,6 +410,7 @@ export class StatsService {
         });
       });
 
+      // Gets all LP and token prices
       const tokenPrices: {
         address: string;
         price: number;
