@@ -320,7 +320,7 @@ export class StatsService {
 
       // Filter through bills on strapi endpoint, assign applicable values from stats
       featuredBills.forEach((element) => {
-        const bill = bills.find(
+        const bill = bills?.find(
           ({ billAddress }) =>
             element.toUpperCase() === billAddress.toUpperCase(),
         );
