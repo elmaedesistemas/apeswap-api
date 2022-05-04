@@ -220,9 +220,11 @@ export class TokensService {
   }
 
   getTokenLogoUrl = async (tokenAddress: string, tokenListings: any) => {
-    return tokenListings.find(
-      (token) => tokenAddress.toUpperCase() === token.address.toUpperCase(),
-    )?.logoURI;
+    return tokenListings
+      .find(
+        (token) => tokenAddress.toUpperCase() === token.address.toUpperCase(),
+      )
+      ?.logoURI.toUpperCase();
   };
 
   async verifyDatabaseTime(data: any, cacheDelay = 120000) {
