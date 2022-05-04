@@ -106,7 +106,7 @@ export class PairsService {
     pair.latestPrice = candleData[candleData.length - 1].c;
     pair.latestTimestamp = to;
     await pair.save();
-    const inserts: any = await this.candleModel.insertMany(candleData);
+    const inserts = await this.candleModel.insertMany(candleData);
     this.logger.log(`Inserted ${inserts.length} new candles`);
   }
 
