@@ -101,7 +101,7 @@ export class TokensService {
       previousTokenData,
     );
 
-    const tokenStorageResponse = await this.createTokenList({
+    const tokenStorageResponse: any = await this.createTokenList({
       title: `all-${chainId}`,
       tokens: filteredTokenData,
     });
