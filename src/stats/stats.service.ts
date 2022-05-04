@@ -421,6 +421,7 @@ export class StatsService {
         this.configService.getData<string>(`56.apePriceGetter`),
       );
 
+      // Go through all bills in the yield repo, get applicable data in TreasuryBill format
       for (let i = 0; i < allBills.length; i++) {
         const bill = allBills[i];
         const {

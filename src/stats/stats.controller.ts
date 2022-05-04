@@ -51,12 +51,6 @@ export class StatsController {
     return await this.statsService.getTvlStats();
   }
 
-  @Get('/bills')
-  async getLending(): Promise<any> {
-    this.logger.debug('Called GET /bills');
-    return await this.statsService.getAllBillsData();
-  }
-
   @ApiOkResponse({
     type: GeneralStats,
   })
