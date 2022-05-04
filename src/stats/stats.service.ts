@@ -430,7 +430,7 @@ export class StatsService {
           rewardToken: earnToken,
           contractAddress: contract,
         } = bill;
-        const customBillContract = await customBillContractWeb3(contract);
+        const customBillContract = customBillContractWeb3(contract);
 
         const lpWithPrice = tokenPrices.find(
           (token) =>
