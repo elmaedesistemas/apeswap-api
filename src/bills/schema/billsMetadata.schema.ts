@@ -4,7 +4,14 @@ import { Attribute, BillData } from '../interface/billData.interface';
 
 export type BillsMetadataDocument = BillsMetadata & Document;
 
-@Schema()
+@Schema({
+  toJSON: {
+    transform: (doc, ret) => {
+      delete ret._id;
+      delete ret._v;
+    },
+  },
+})
 export class BillsMetadata {
   @Prop({ required: true })
   name: string;
