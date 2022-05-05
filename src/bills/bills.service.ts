@@ -13,7 +13,7 @@ import { createLpPairName } from 'src/utils/helpers';
 import { Network } from 'src/web3/network.enum';
 import { Web3Service } from 'src/web3/web3.service';
 import { BillNft_abi } from './abi/BillNft.abi';
-import { CustomBill_abi } from './abi/CustomBill.abi';
+import { CUSTOM_BILL_ABI } from './abi/CustomBill.abi';
 import { BillsImagesService } from './bills.images.service';
 import { BillData, BillTerms } from './interface/billData.interface';
 import { generateAttributes, generateV1Attributes } from './random.layers';
@@ -53,7 +53,7 @@ export class BillsService {
     const billContract = transaction.to;
 
     // Decode event log
-    const iface = new utils.Interface(CustomBill_abi);
+    const iface = new utils.Interface(CUSTOM_BILL_ABI);
     const event = {
       data: transaction.logs[6].data,
       topics: transaction.logs[6].topics,
@@ -112,7 +112,7 @@ export class BillsService {
   async getBillTermsFromContract(contractAddress: string): Promise<BillTerms> {
     const contract = this.web3.getContract(
       Network.bsc,
-      CustomBill_abi,
+      CUSTOM_BILL_ABI,
       contractAddress,
     );
     // TODO: multicall this?
@@ -279,7 +279,7 @@ export class BillsService {
     );
     const billContract = this.web3.getContract(
       Network.bsc,
-      CustomBill_abi,
+      CUSTOM_BILL_ABI,
       billAddress,
     );
     const billInfo = await billContract.methods.billInfo(tokenId).call();

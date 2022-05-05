@@ -631,14 +631,12 @@ export const getLiquidityFarm = (balance, farm): number => {
   let tokenBalance = balances.balances.find(
     (b) => b.currency?.address.toLowerCase() === farm.t0Address.toLowerCase(),
   );
-  if (tokenBalance)
-    return Math.abs(tokenBalance.value*2*farm?.p0);
+  if (tokenBalance) return Math.abs(tokenBalance.value * 2 * farm?.p0);
   if (!liquidity) {
     tokenBalance = balances.balances.find(
       (b) => b.currency.address.toLowerCase() === farm.t1Address.toLowerCase(),
     );
-    if (tokenBalance)
-      return Math.abs(tokenBalance.value*2*farm?.p1);
+    if (tokenBalance) return Math.abs(tokenBalance.value * 2 * farm?.p1);
   }
   if (!liquidity) liquidity = 0;
 

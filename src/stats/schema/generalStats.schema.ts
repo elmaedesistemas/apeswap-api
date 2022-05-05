@@ -46,6 +46,9 @@ export class GeneralStats {
 
   @Prop({ required: false })
   lendingData: [];
+  
+  @Prop({ required: false })
+  bills: [];
 
   @Prop({ default: Date.now })
   createdAt: Date;
