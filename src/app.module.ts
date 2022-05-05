@@ -42,12 +42,12 @@ import { BillsModule } from './bills/bills.module';
   ],
   controllers: [AppController],
   providers: [
-    AppService, 
+    AppService,
     Cloudinary,
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard
-    }
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {
