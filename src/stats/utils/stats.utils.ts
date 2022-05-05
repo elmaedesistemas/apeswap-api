@@ -12,7 +12,6 @@ import { getBalanceNumber } from 'src/utils/math';
 import { multicallNetwork } from 'src/utils/lib/multicall';
 import { MINI_COMPLEX_REWARDER_ABI } from './abi/miniComplexRewarderAbi';
 import { OLA_LENS_ABI } from './abi/OlaCompoundLens';
-import { CustomBill_abi } from 'src/bills/abi/CustomBill.abi';
 
 export const SECONDS_PER_YEAR = new BigNumber(31536000);
 // ADDRESS GETTERS
@@ -74,10 +73,6 @@ export function lendingMarkets(): [{ name: string; contract: string }] {
 
 export function olaCompoundLensContractWeb3(): any {
   return getContract(OLA_LENS_ABI, olaCompoundLensAddress());
-}
-
-export function customBillContractWeb3(billAddress: string): any {
-  return getContract(CustomBill_abi, billAddress);
 }
 
 export function getBananaPriceWithPoolList(poolList, prices) {

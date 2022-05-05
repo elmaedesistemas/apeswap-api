@@ -42,6 +42,7 @@ export class GeneralStatsNetworkDto {
   farms?: FarmStatsDto[];
   incentivizedPools: IncentivizedPoolStats[];
   lendingData?: LendingMarket[];
+  bills?: TreasuryBill[];
 }
 
 export class ChainIdDto {

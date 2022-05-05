@@ -25,7 +25,6 @@ import {
   gBananaTreasury,
   masterApeContractWeb,
   olaCompoundLensContractWeb3,
-  customBillContractWeb3,
   bananaAddress,
   goldenBananaAddress,
   masterApeContractAddress,
@@ -57,6 +56,8 @@ import { calculateSupplyAndBorrowApys } from './utils/lendingUtils';
 import { LendingMarket } from 'src/interfaces/stats/lendingMarket.dto';
 import { TreasuryBill } from 'src/interfaces/stats/treasuryBill.dto';
 import { fetchPrices } from 'src/stats/utils/fetchPrices';
+import { OLA_COMPOUND_ABI } from './utils/abi/olaCompoundAbi';
+import { CUSTOM_BILL_ABI } from 'src/bills/abi/CustomBill.abi';
 
 @Injectable()
 export class StatsService {
@@ -339,12 +340,27 @@ export class StatsService {
   async getAllLendingMarketData(): Promise<LendingMarket[]> {
     const lendingData: LendingMarket[] = [];
     const allLendingMarkets = lendingMarkets();
-    const olaCompoundLensContract = olaCompoundLensContractWeb3();
+    const olaCompoundLensContract = this.configService.getData<string>(`56.olaCompoundLens`)
 
+    const callsMetadata = allLendingMarkets.map( markets => (
+      {
+        address: olaCompoundLensContract,
+        name: 'cTokenMetadata',
+        params:[markets.contract]
+      }
+    ))
+    const callsUnderlying = allLendingMarkets.map( markets => (
+      {
+        address: olaCompoundLensContract,
+        name: 'cTokenUnderlyingPrice',
+        params:[markets.contract]
+      }
+    ))
+    const allMetada = await multicall(OLA_COMPOUND_ABI, callsMetadata);
+    const allUnderlying = await multicall(OLA_COMPOUND_ABI, callsUnderlying);
     for (let i = 0; i < allLendingMarkets.length; i++) {
       const market = allLendingMarkets[i];
       const { name, contract } = market;
-
       const {
         borrowRatePerBlock,
         underlyingDecimals,
@@ -353,13 +369,11 @@ export class StatsService {
         exchangeRateCurrent,
         totalBorrows,
         reserveFactorMantissa,
-      } = await olaCompoundLensContract.methods.cTokenMetadata(contract).call();
+      } = allMetada[i][0];
 
       const {
         underlyingPrice,
-      } = await olaCompoundLensContract.methods
-        .cTokenUnderlyingPrice(contract)
-        .call();
+      } = allUnderlying[i][0];
 
       const apys = calculateSupplyAndBorrowApys(
         borrowRatePerBlock,
@@ -371,8 +385,6 @@ export class StatsService {
         totalBorrows,
         reserveFactorMantissa,
       );
-
-      // TODO: Add Distribution (Rainmaker) APYs
 
       lendingData.push({
         name,
@@ -420,7 +432,13 @@ export class StatsService {
         56,
         this.configService.getData<string>(`56.apePriceGetter`),
       );
-
+      const callsBill = allBills.map( bill => (
+        {
+          address: bill.contractAddress,
+          name: 'trueBillPrice',
+        }
+      ))
+      const allCustomBill = await multicall(CUSTOM_BILL_ABI, callsBill);
       // Go through all bills in the yield repo, get applicable data in TreasuryBill format
       for (let i = 0; i < allBills.length; i++) {
         const bill = allBills[i];
@@ -430,8 +448,7 @@ export class StatsService {
           rewardToken: earnToken,
           contractAddress: contract,
         } = bill;
-        const customBillContract = customBillContractWeb3(contract);
-
+        
         const lpWithPrice = tokenPrices.find(
           (token) =>
             token.address.toLowerCase() === lpToken.address.toLowerCase(),
@@ -441,9 +458,7 @@ export class StatsService {
             token.address.toLowerCase() === earnToken.address.toLowerCase(),
         );
 
-        const trueBillPrice = await customBillContract.methods
-          .trueBillPrice()
-          .call();
+        const trueBillPrice = allCustomBill[i][0]
 
         const discount =
           ((earnTokenWithPrice.price -
@@ -460,7 +475,6 @@ export class StatsService {
           discount,
         });
       }
-
       return billsData;
     } catch (err) {
       this.logger.error(err.message);
@@ -643,10 +657,9 @@ export class StatsService {
     const masterApeContract = masterApeContractWeb();
 
     const lendingData = await this.getAllLendingMarketData();
-
-    const poolInfos = await this.calculatePoolInfo(masterApeContract);
-
     const bills = await this.getAllBillsData();
+    
+    const poolInfos = await this.calculatePoolInfo(masterApeContract);
 
     const [{ totalAllocPoints, rewardsPerDay }, prices] = await Promise.all([
       this.getAllocPointAndRewards(masterApeContract),
