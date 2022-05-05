@@ -465,7 +465,7 @@ export class StatsService {
           lpToken: lpToken.address,
           lpTokenName: lpToken.symbol,
           earnToken: earnToken.address,
-          earnTokenName: earnToken.name,
+          earnTokenName: earnToken.symbol,
           billAddress: contract,
           discount,
           billUrl: 'https://apeswap.finance/treasury-bills',
