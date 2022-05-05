@@ -468,7 +468,7 @@ export class StatsService {
           earnTokenName: earnToken.symbol,
           billAddress: contract,
           discount,
-          billUrl: 'https://apeswap.finance/treasury-bills',
+          link: 'https://apeswap.finance/treasury-bills',
         });
       }
       return billsData;
