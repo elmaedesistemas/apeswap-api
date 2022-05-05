@@ -151,10 +151,16 @@ export class StatsNetworkService {
         pools: [],
         farms: [],
         incentivizedPools: [],
+        lendingData: [],
+        bills: [],
       };
 
       switch (chainId) {
         case this.configService.getData<number>('networksId.BSC'):
+
+          generalStats.lendingData = await this.statsService.getAllLendingMarketData();
+          generalStats.bills = await this.statsService.getAllBillsData();
+          
           const poolInfos = await this.statsService.calculatePoolInfo(
             masterApeContract,
           );

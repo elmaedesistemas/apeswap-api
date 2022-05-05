@@ -1,4 +1,4 @@
-export const CustomBill_abi = [
+export const CUSTOM_BILL_ABI = [
   {
     anonymous: false,
     inputs: [

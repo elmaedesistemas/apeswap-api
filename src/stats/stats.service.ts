@@ -54,12 +54,17 @@ import { BitqueryService } from 'src/bitquery/bitquery.service';
 import Multicall from '@dopex-io/web3-multicall';
 import { calculateSupplyAndBorrowApys } from './utils/lendingUtils';
 import { LendingMarket } from 'src/interfaces/stats/lendingMarket.dto';
+import { TreasuryBill } from 'src/interfaces/stats/treasuryBill.dto';
+import { fetchPrices } from 'src/stats/utils/fetchPrices';
+import { OLA_COMPOUND_ABI } from './utils/abi/olaCompoundAbi';
+import { CUSTOM_BILL_ABI } from 'src/bills/abi/CustomBill.abi';
 
 @Injectable()
 export class StatsService {
   private readonly logger = new Logger(StatsService.name);
   private readonly chainId = parseInt(process.env.CHAIN_ID);
   private readonly POOL_LIST_URL = process.env.POOL_LIST_URL;
+  private readonly BILL_LIST_URL = process.env.BILL_LIST_URL;
   private readonly STRAPI_URL = process.env.APESWAP_STRAPI_URL;
 
   constructor(
@@ -224,7 +229,12 @@ export class StatsService {
   }
 
   async getHomepageFeatures(): Promise<HomepageFeatures> {
-    const [farmDetails, poolDetails, lendingDetails] = [[], [], []];
+    const [farmDetails, poolDetails, lendingDetails, billDetails] = [
+      [],
+      [],
+      [],
+      [],
+    ];
 
     try {
       const { data: features } = await this.httpService
@@ -235,10 +245,11 @@ export class StatsService {
         farms: featuredFarms,
         pools: featuredPools,
         lending: featuredMarkets,
+        bills: featuredBills,
       } = features[0];
 
       const allStats = await this.getAllStats();
-      const { farms, incentivizedPools: pools, lendingData } = allStats;
+      const { farms, incentivizedPools: pools, lendingData, bills } = allStats;
 
       // Filter through farms on strapi, assign applicable values from stats
       featuredFarms.forEach((element) => {
@@ -308,10 +319,20 @@ export class StatsService {
         });
       });
 
-      return { farmDetails, poolDetails, lendingDetails };
+      // Filter through bills on strapi endpoint, assign applicable values from stats
+      featuredBills.forEach((element) => {
+        const bill = bills?.find(
+          ({ billAddress }) =>
+            element.toUpperCase() === billAddress.toUpperCase(),
+        );
+
+        billDetails.push(bill);
+      });
+
+      return { farmDetails, poolDetails, lendingDetails, billDetails };
     } catch (error) {
       this.logger.error(
-        `Error when attempted to retrieve homepage featurs: ${error.message}`,
+        `Error when attempted to retrieve homepage features: ${error.message}`,
       );
     }
   }
@@ -319,12 +340,27 @@ export class StatsService {
   async getAllLendingMarketData(): Promise<LendingMarket[]> {
     const lendingData: LendingMarket[] = [];
     const allLendingMarkets = lendingMarkets();
-    const olaCompoundLensContract = olaCompoundLensContractWeb3();
+    const olaCompoundLensContract = this.configService.getData<string>(`56.olaCompoundLens`)
 
+    const callsMetadata = allLendingMarkets.map( markets => (
+      {
+        address: olaCompoundLensContract,
+        name: 'cTokenMetadata',
+        params:[markets.contract]
+      }
+    ))
+    const callsUnderlying = allLendingMarkets.map( markets => (
+      {
+        address: olaCompoundLensContract,
+        name: 'cTokenUnderlyingPrice',
+        params:[markets.contract]
+      }
+    ))
+    const allMetada = await multicall(OLA_COMPOUND_ABI, callsMetadata);
+    const allUnderlying = await multicall(OLA_COMPOUND_ABI, callsUnderlying);
     for (let i = 0; i < allLendingMarkets.length; i++) {
       const market = allLendingMarkets[i];
       const { name, contract } = market;
-
       const {
         borrowRatePerBlock,
         underlyingDecimals,
@@ -333,13 +369,11 @@ export class StatsService {
         exchangeRateCurrent,
         totalBorrows,
         reserveFactorMantissa,
-      } = await olaCompoundLensContract.methods.cTokenMetadata(contract).call();
+      } = allMetada[i][0];
 
       const {
         underlyingPrice,
-      } = await olaCompoundLensContract.methods
-        .cTokenUnderlyingPrice(contract)
-        .call();
+      } = allUnderlying[i][0];
 
       const apys = calculateSupplyAndBorrowApys(
         borrowRatePerBlock,
@@ -352,8 +386,6 @@ export class StatsService {
         reserveFactorMantissa,
       );
 
-      // TODO: Add Distribution (Rainmaker) APYs
-
       lendingData.push({
         name,
         marketAddress: contract,
@@ -362,6 +394,91 @@ export class StatsService {
     }
 
     return lendingData;
+  }
+
+  // Gets all the data needed for Bills
+  async getAllBillsData(): Promise<TreasuryBill[]> {
+    try {
+      const billsData: TreasuryBill[] = [];
+      const allTokens = [];
+      const { data: allBills } = await this.httpService
+        .get(this.BILL_LIST_URL)
+        .toPromise();
+
+      // Formats all applicable LPs to be ready to be priced
+      allBills.forEach((bill) => {
+        allTokens.push({
+          chainId: 56,
+          lpToken: true,
+          decimals: 18,
+          address: bill.lpToken.address.toLowerCase(),
+        });
+
+        allTokens.push({
+          chainId: 56,
+          lpToken: false,
+          decimals: 18,
+          address: bill.rewardToken.address,
+        });
+      });
+
+      // Gets all LP and token prices
+      const tokenPrices: {
+        address: string;
+        price: number;
+        decimals: number;
+      }[] = await fetchPrices(
+        allTokens,
+        56,
+        this.configService.getData<string>(`56.apePriceGetter`),
+      );
+      const callsBill = allBills.map( bill => (
+        {
+          address: bill.contractAddress,
+          name: 'trueBillPrice',
+        }
+      ))
+      const allCustomBill = await multicall(CUSTOM_BILL_ABI, callsBill);
+      // Go through all bills in the yield repo, get applicable data in TreasuryBill format
+      for (let i = 0; i < allBills.length; i++) {
+        const bill = allBills[i];
+        const {
+          billType: type,
+          lpToken,
+          rewardToken: earnToken,
+          contractAddress: contract,
+        } = bill;
+        
+        const lpWithPrice = tokenPrices.find(
+          (token) =>
+            token.address.toLowerCase() === lpToken.address.toLowerCase(),
+        );
+        const earnTokenWithPrice = tokenPrices.find(
+          (token) =>
+            token.address.toLowerCase() === earnToken.address.toLowerCase(),
+        );
+
+        const trueBillPrice = allCustomBill[i][0]
+
+        const discount =
+          ((earnTokenWithPrice.price -
+            lpWithPrice.price * (trueBillPrice / 10 ** 18)) /
+            earnTokenWithPrice.price) *
+          100;
+
+        billsData.push({
+          type,
+          lpToken: lpToken.address,
+          lpTokenName: lpToken.symbol,
+          earnToken: earnToken.address,
+          billAddress: contract,
+          discount,
+        });
+      }
+      return billsData;
+    } catch (err) {
+      this.logger.error(err.message);
+    }
   }
 
   // Function called on /stats/tvl endpoint
@@ -540,7 +657,8 @@ export class StatsService {
     const masterApeContract = masterApeContractWeb();
 
     const lendingData = await this.getAllLendingMarketData();
-
+    const bills = await this.getAllBillsData();
+    
     const poolInfos = await this.calculatePoolInfo(masterApeContract);
 
     const [{ totalAllocPoints, rewardsPerDay }, prices] = await Promise.all([
@@ -586,6 +704,7 @@ export class StatsService {
       farms: [],
       incentivizedPools: [],
       lendingData,
+      bills,
     };
 
     for (let i = 0; i < poolInfos.length; i++) {
