@@ -340,22 +340,20 @@ export class StatsService {
   async getAllLendingMarketData(): Promise<LendingMarket[]> {
     const lendingData: LendingMarket[] = [];
     const allLendingMarkets = lendingMarkets();
-    const olaCompoundLensContract = this.configService.getData<string>(`56.olaCompoundLens`)
+    const olaCompoundLensContract = this.configService.getData<string>(
+      `56.olaCompoundLens`,
+    );
 
-    const callsMetadata = allLendingMarkets.map( markets => (
-      {
-        address: olaCompoundLensContract,
-        name: 'cTokenMetadata',
-        params:[markets.contract]
-      }
-    ))
-    const callsUnderlying = allLendingMarkets.map( markets => (
-      {
-        address: olaCompoundLensContract,
-        name: 'cTokenUnderlyingPrice',
-        params:[markets.contract]
-      }
-    ))
+    const callsMetadata = allLendingMarkets.map((markets) => ({
+      address: olaCompoundLensContract,
+      name: 'cTokenMetadata',
+      params: [markets.contract],
+    }));
+    const callsUnderlying = allLendingMarkets.map((markets) => ({
+      address: olaCompoundLensContract,
+      name: 'cTokenUnderlyingPrice',
+      params: [markets.contract],
+    }));
     const allMetada = await multicall(OLA_COMPOUND_ABI, callsMetadata);
     const allUnderlying = await multicall(OLA_COMPOUND_ABI, callsUnderlying);
     for (let i = 0; i < allLendingMarkets.length; i++) {
@@ -371,9 +369,7 @@ export class StatsService {
         reserveFactorMantissa,
       } = allMetada[i][0];
 
-      const {
-        underlyingPrice,
-      } = allUnderlying[i][0];
+      const { underlyingPrice } = allUnderlying[i][0];
 
       const apys = calculateSupplyAndBorrowApys(
         borrowRatePerBlock,
@@ -432,12 +428,10 @@ export class StatsService {
         56,
         this.configService.getData<string>(`56.apePriceGetter`),
       );
-      const callsBill = allBills.map( bill => (
-        {
-          address: bill.contractAddress,
-          name: 'trueBillPrice',
-        }
-      ))
+      const callsBill = allBills.map((bill) => ({
+        address: bill.contractAddress,
+        name: 'trueBillPrice',
+      }));
       const allCustomBill = await multicall(CUSTOM_BILL_ABI, callsBill);
       // Go through all bills in the yield repo, get applicable data in TreasuryBill format
       for (let i = 0; i < allBills.length; i++) {
@@ -448,7 +442,7 @@ export class StatsService {
           rewardToken: earnToken,
           contractAddress: contract,
         } = bill;
-        
+
         const lpWithPrice = tokenPrices.find(
           (token) =>
             token.address.toLowerCase() === lpToken.address.toLowerCase(),
@@ -458,7 +452,7 @@ export class StatsService {
             token.address.toLowerCase() === earnToken.address.toLowerCase(),
         );
 
-        const trueBillPrice = allCustomBill[i][0]
+        const trueBillPrice = allCustomBill[i][0];
 
         const discount =
           ((earnTokenWithPrice.price -
@@ -471,8 +465,10 @@ export class StatsService {
           lpToken: lpToken.address,
           lpTokenName: lpToken.symbol,
           earnToken: earnToken.address,
+          earnTokenName: earnToken.name,
           billAddress: contract,
           discount,
+          billUrl: 'https://apeswap.finance/treasury-bills',
         });
       }
       return billsData;
@@ -658,7 +654,7 @@ export class StatsService {
 
     const lendingData = await this.getAllLendingMarketData();
     const bills = await this.getAllBillsData();
-    
+
     const poolInfos = await this.calculatePoolInfo(masterApeContract);
 
     const [{ totalAllocPoints, rewardsPerDay }, prices] = await Promise.all([

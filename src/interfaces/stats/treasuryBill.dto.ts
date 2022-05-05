@@ -6,4 +6,5 @@ export class TreasuryBill {
   readonly earnToken: string;
   readonly earnTokenName?: string;
   readonly discount?: number;
+  readonly billUrl: string;
 }
