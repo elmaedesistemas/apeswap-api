@@ -337,8 +337,9 @@ export class StatsService {
   async getAllLendingMarketData(): Promise<LendingMarket[]> {
     const lendingData: LendingMarket[] = [];
     const allLendingMarkets = lendingMarkets();
-    const olaCompoundLensContract =
-      this.configService.getData<string>(`56.olaCompoundLens`);
+    const olaCompoundLensContract = this.configService.getData<string>(
+      `56.olaCompoundLens`,
+    );
 
     const callsMetadata = allLendingMarkets.map((markets) => ({
       address: olaCompoundLensContract,
@@ -461,8 +462,10 @@ export class StatsService {
           lpToken: lpToken.address,
           lpTokenName: lpToken.symbol,
           earnToken: earnToken.address,
+          earnTokenName: earnToken.symbol,
           billAddress: contract,
           discount,
+          link: 'https://apeswap.finance/treasury-bills',
         });
       }
       return billsData;
