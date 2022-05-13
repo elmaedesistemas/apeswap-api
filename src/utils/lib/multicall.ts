@@ -13,7 +13,7 @@ interface Call {
 export const multicall = async (abi: any[], calls: Call[]) => {
   const web3 = getWeb3();
   const multi = new web3.eth.Contract(
-    (MULTICALL_ABI as unknown) as AbiItem,
+    MULTICALL_ABI as unknown as AbiItem,
     getMulticallAddress(),
   );
   const itf = new Interface(abi);
@@ -22,11 +22,17 @@ export const multicall = async (abi: any[], calls: Call[]) => {
     call.address.toLowerCase(),
     itf.encodeFunctionData(call.name, call.params),
   ]);
-  const { returnData } = await multi.methods.aggregate(calldata).call();
-  const res = returnData.map((call, i) =>
-    itf.decodeFunctionResult(calls[i].name, call),
-  );
-  return res;
+
+  try {
+    const { returnData } = await multi.methods.aggregate(calldata).call();
+    const res = returnData.map((call, i) =>
+      itf.decodeFunctionResult(calls[i].name, call),
+    );
+    return res;
+  } catch (error) {
+    console.log('error en multicall');
+    return [];
+  }
 };
 
 export const multicallNetwork = async (
@@ -36,7 +42,7 @@ export const multicallNetwork = async (
 ) => {
   const web3 = getWeb3(chainId);
   const multi = new web3.eth.Contract(
-    (getMulticallAbiNetwork(chainId) as unknown) as AbiItem,
+    getMulticallAbiNetwork(chainId) as unknown as AbiItem,
     getMulticallAddressNetwork(chainId),
   );
   const itf = new Interface(abi);

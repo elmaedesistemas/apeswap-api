@@ -7,7 +7,6 @@ import {
 
 import { MASTER_APE_ABI } from './abi/masterApeAbi';
 import configuration from 'src/config/configuration';
-import { BEP20_REWARD_APE_ABI } from './abi/bep20RewardApeAbi';
 import { getBalanceNumber } from 'src/utils/math';
 import { multicallNetwork } from 'src/utils/lib/multicall';
 import { MINI_COMPLEX_REWARDER_ABI } from './abi/miniComplexRewarderAbi';
@@ -232,149 +231,6 @@ function getBep20Prices(
   };
 }
 
-// Get TVL info for Pools only given a wallet
-export async function getWalletStatsForPools(
-  wallet,
-  pools,
-  masterApeContract,
-): Promise<any> {
-  const allPools = [];
-  await Promise.all(
-    pools.map(async (pool) => {
-      const userInfo = await masterApeContract.methods
-        .userInfo(pool.poolIndex, wallet)
-        .call();
-      const pendingReward =
-        (await masterApeContract.methods
-          .pendingCake(pool.poolIndex, wallet)
-          .call()) /
-        10 ** pool.decimals;
-
-      if (userInfo.amount != 0 || pendingReward != 0) {
-        const stakedTvl = (userInfo.amount * pool.price) / 10 ** pool.decimals;
-        const dollarsEarnedPerDay = (stakedTvl * pool.apr) / 365;
-        const tokensEarnedPerDay = dollarsEarnedPerDay / pool.rewardTokenPrice;
-        const curr_pool = {
-          address: pool.address,
-          name: pool.lpSymbol,
-          rewardTokenSymbol: pool.rewardTokenSymbol,
-          stakedTvl,
-          pendingReward,
-          pendingRewardUsd: pendingReward * pool.rewardTokenPrice,
-          apr: pool.apr,
-          dollarsEarnedPerDay,
-          dollarsEarnedPerWeek: dollarsEarnedPerDay * 7,
-          dollarsEarnedPerMonth: dollarsEarnedPerDay * 30,
-          dollarsEarnedPerYear: dollarsEarnedPerDay * 365,
-          tokensEarnedPerDay,
-          tokensEarnedPerWeek: tokensEarnedPerDay * 7,
-          tokensEarnedPerMonth: tokensEarnedPerDay * 30,
-          tokensEarnedPerYear: tokensEarnedPerDay * 365,
-        };
-
-        allPools.push(curr_pool);
-      }
-    }),
-  );
-  return allPools;
-}
-
-// Get TVL info for Farms only given a wallet
-export async function getWalletStatsForFarms(
-  wallet,
-  farms,
-  masterApeContract,
-): Promise<any> {
-  const allFarms = [];
-  await Promise.all(
-    farms.map(async (farm) => {
-      const userInfo = await masterApeContract.methods
-        .userInfo(farm.poolIndex, wallet)
-        .call();
-      const pendingReward =
-        (await masterApeContract.methods
-          .pendingCake(farm.poolIndex, wallet)
-          .call()) /
-        10 ** farm.decimals;
-
-      if (userInfo.amount != 0 || pendingReward != 0) {
-        const stakedTvl = (userInfo.amount * farm.price) / 10 ** farm.decimals;
-        const dollarsEarnedPerDay = (stakedTvl * farm.apr) / 365;
-        const tokensEarnedPerDay = dollarsEarnedPerDay / farm.rewardTokenPrice;
-        const curr_farm = {
-          address: farm.address,
-          name: farm.name,
-          stakedTvl,
-          pendingReward,
-          pendingRewardUsd: pendingReward * farm.rewardTokenPrice,
-          apr: farm.apr,
-          dollarsEarnedPerDay,
-          dollarsEarnedPerWeek: dollarsEarnedPerDay * 7,
-          dollarsEarnedPerMonth: dollarsEarnedPerDay * 30,
-          dollarsEarnedPerYear: dollarsEarnedPerDay * 365,
-          tokensEarnedPerDay,
-          tokensEarnedPerWeek: tokensEarnedPerDay * 7,
-          tokensEarnedPerMonth: tokensEarnedPerDay * 30,
-          tokensEarnedPerYear: tokensEarnedPerDay * 365,
-        };
-
-        allFarms.push(curr_farm);
-      }
-    }),
-  );
-  return allFarms;
-}
-
-// Get TVL info for IncentivizedPools only given a wallet
-export async function getWalletStatsForIncentivizedPools(
-  wallet,
-  pools,
-): Promise<any> {
-  const allIncentivizedPools = [];
-  await Promise.all(
-    pools.map(async (incentivizedPool) => {
-      const contract = getContract(
-        BEP20_REWARD_APE_ABI,
-        incentivizedPool.address,
-      );
-      const userInfo = await contract.methods.userInfo(wallet).call();
-      const pendingReward =
-        (await contract.methods.pendingReward(wallet).call()) /
-        10 ** incentivizedPool.rewardDecimals;
-
-      if (userInfo.amount != 0 || pendingReward != 0) {
-        const stakedTvl =
-          (userInfo.amount * incentivizedPool.price) /
-          10 ** incentivizedPool.stakedTokenDecimals;
-        const dollarsEarnedPerDay = (stakedTvl * incentivizedPool.apr) / 365;
-        const tokensEarnedPerDay =
-          dollarsEarnedPerDay / incentivizedPool.rewardTokenPrice;
-        const curr_pool = {
-          id: incentivizedPool.sousId,
-          address: incentivizedPool.address,
-          name: incentivizedPool.name,
-          rewardTokenSymbol: incentivizedPool.rewardTokenSymbol,
-          stakedTvl,
-          pendingReward,
-          pendingRewardUsd: pendingReward * incentivizedPool.rewardTokenPrice,
-          apr: incentivizedPool.apr,
-          dollarsEarnedPerDay,
-          dollarsEarnedPerWeek: dollarsEarnedPerDay * 7,
-          dollarsEarnedPerMonth: dollarsEarnedPerDay * 30,
-          dollarsEarnedPerYear: dollarsEarnedPerDay * 365,
-          tokensEarnedPerDay,
-          tokensEarnedPerWeek: tokensEarnedPerDay * 7,
-          tokensEarnedPerMonth: tokensEarnedPerDay * 30,
-          tokensEarnedPerYear: tokensEarnedPerDay * 365,
-        };
-
-        allIncentivizedPools.push(curr_pool);
-      }
-    }),
-  );
-  return allIncentivizedPools;
-}
-
 export const getDualFarmApr = (
   poolLiquidityUsd: number,
   miniChefRewardTokenPrice: number,
@@ -451,16 +307,12 @@ export async function calculateMiscAmounts(
   token1,
   chainId,
 ) {
-  const [
-    quoteTokenBlanceLP,
-    tokenBalanceLP,
-    lpTokenBalanceMC,
-    lpTotalSupply,
-  ] = await multicallNetwork(
-    abiErc,
-    getCallsErcBalances(dualFarmConfig, miniChefAddress),
-    chainId,
-  );
+  const [quoteTokenBlanceLP, tokenBalanceLP, lpTokenBalanceMC, lpTotalSupply] =
+    await multicallNetwork(
+      abiErc,
+      getCallsErcBalances(dualFarmConfig, miniChefAddress),
+      chainId,
+    );
   const lpTokenRatio = new BigNumber(lpTokenBalanceMC).div(
     new BigNumber(lpTotalSupply),
   );
@@ -578,29 +430,26 @@ export async function getAllocInfo(
   let multiplier = 'unset';
   let miniChefPoolRewardPerSecond = null;
   try {
-    const [
-      info,
-      totalAllocPoint,
-      miniChefRewardsPerSecond,
-    ] = await multicallNetwork(
-      abiMasterApe,
-      [
-        {
-          address: miniChefAddress,
-          name: 'poolInfo',
-          params: [dualFarmConfig.pid],
-        },
-        {
-          address: miniChefAddress,
-          name: 'totalAllocPoint',
-        },
-        {
-          address: miniChefAddress,
-          name: 'bananaPerSecond',
-        },
-      ],
-      chainId,
-    );
+    const [info, totalAllocPoint, miniChefRewardsPerSecond] =
+      await multicallNetwork(
+        abiMasterApe,
+        [
+          {
+            address: miniChefAddress,
+            name: 'poolInfo',
+            params: [dualFarmConfig.pid],
+          },
+          {
+            address: miniChefAddress,
+            name: 'totalAllocPoint',
+          },
+          {
+            address: miniChefAddress,
+            name: 'bananaPerSecond',
+          },
+        ],
+        chainId,
+      );
     const allocPoint = new BigNumber(info.allocPoint._hex);
     const poolWeight = allocPoint.div(new BigNumber(totalAllocPoint));
     miniChefPoolRewardPerSecond = getBalanceNumber(
@@ -641,4 +490,24 @@ export const getLiquidityFarm = (balance, farm): number => {
   if (!liquidity) liquidity = 0;
 
   return liquidity;
+};
+
+export const mappingCalls = (
+  id: string,
+  array: [any],
+  option: string,
+  params = undefined,
+) => {
+  return array.map((a) => ({
+    address: a[id],
+    name: option,
+    params,
+  }));
+};
+
+export const reduceList = (array: any, id: string) => {
+  return array.filter(
+    (thing, index, self) =>
+      index === self.findIndex((t) => t[id] === thing[id]),
+  );
 };

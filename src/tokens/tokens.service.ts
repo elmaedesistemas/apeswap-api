@@ -10,9 +10,8 @@ import { StrapiTokensObject, Token } from 'src/interfaces/tokens/token.dto';
 @Injectable()
 export class TokensService {
   private readonly logger = new Logger(TokensService.name);
-  private readonly TOKEN_LIST_URL = this.configService.getData<string>(
-    'tokenListUrl',
-  );
+  private readonly TOKEN_LIST_URL =
+    this.configService.getData<string>('tokenListUrl');
   private readonly POLYGONSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY;
 
   constructor(
@@ -90,10 +89,8 @@ export class TokensService {
     tokenListConfig: StrapiTokensObject[],
   ): Promise<TokenList[]> {
     // 1. Get raw token data from subgraph, both now & 24 hours ago
-    const {
-      currentTokenData,
-      previousTokenData,
-    } = await this.getRawTokenDataFromSubgraph(chainId);
+    const { currentTokenData, previousTokenData } =
+      await this.getRawTokenDataFromSubgraph(chainId);
 
     // 2. Filter raw token data into data for the database
     const filteredTokenData = await this.prepDataForDatabase(

@@ -4,7 +4,6 @@ import {
   Get,
   Logger,
   Param,
-  Request,
   UseInterceptors,
   UsePipes,
   ValidationPipe,
@@ -102,13 +101,5 @@ export class StatsController {
   async get(): Promise<any> {
     this.logger.debug('Called GET /stats/get');
     return this.statsService.getDefistation();
-  }
-
-  @ApiExcludeEndpoint()
-  @Get(':wallet')
-  async getStatsForWallet(@Param('wallet') wallet: string): Promise<string> {
-    this.logger.debug('Called GET /stats/:wallet');
-    // return this.statsService.getStatsForWallet(wallet);
-    return 'Depcrecated';
   }
 }

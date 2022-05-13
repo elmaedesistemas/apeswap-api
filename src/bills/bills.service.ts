@@ -152,9 +152,8 @@ export class BillsService {
       this.logger.log(`Loading bill ${tokenId}`);
       const billData = await this.getBillDataWithNftId({ tokenId });
       if (!this.billCreations[billData.createTransactionHash]) {
-        this.billCreations[billData.createTransactionHash] = this.createNewBill(
-          billData,
-        );
+        this.billCreations[billData.createTransactionHash] =
+          this.createNewBill(billData);
       }
       billMetadata = await this.billCreations[
         billData.createTransactionHash
@@ -235,9 +234,8 @@ export class BillsService {
         const { billData } = await this.getBillDataFromTransaction(
           event.transactionHash,
         );
-        this.billCreations[event.transactionHash] = this.createNewBill(
-          billData,
-        );
+        this.billCreations[event.transactionHash] =
+          this.createNewBill(billData);
         await this.billCreations[event.transactionHash].catch();
         delete this.billCreations[event.transactionHash];
       }

@@ -22,23 +22,18 @@ import {
 } from 'src/utils/helpers';
 import { multicall, multicallNetwork } from 'src/utils/lib/multicall';
 import {
-  gBananaTreasury,
   masterApeContractWeb,
-  olaCompoundLensContractWeb3,
   bananaAddress,
   goldenBananaAddress,
   masterApeContractAddress,
   getBananaPriceWithPoolList,
   getPoolPrices,
-  getWalletStatsForPools,
-  getWalletStatsForFarms,
-  getWalletStatsForIncentivizedPools,
   lendingAddress,
   unitrollerAddress,
   lendingMarkets,
+  mappingCalls,
+  reduceList,
 } from './utils/stats.utils';
-import { WalletStats } from 'src/interfaces/stats/walletStats.dto';
-import { WalletInvalidHttpException } from './exceptions/wallet-invalid.execption';
 import { Model } from 'mongoose';
 import {
   GeneralStats as GeneralStatsDB,
@@ -50,7 +45,6 @@ import { BEP20_REWARD_APE_ABI } from './utils/abi/bep20RewardApeAbi';
 import { GeneralStatsChain } from 'src/interfaces/stats/generalStatsChain.dto';
 import { TvlStats, TvlStatsDocument } from './schema/tvlStats.schema';
 import { ChainConfigService } from 'src/config/chain.configuration.service';
-import { BitqueryService } from 'src/bitquery/bitquery.service';
 import Multicall from '@dopex-io/web3-multicall';
 import { calculateSupplyAndBorrowApys } from './utils/lendingUtils';
 import { LendingMarket } from 'src/interfaces/stats/lendingMarket.dto';
@@ -58,6 +52,7 @@ import { TreasuryBill } from 'src/interfaces/stats/treasuryBill.dto';
 import { fetchPrices } from 'src/stats/utils/fetchPrices';
 import { OLA_COMPOUND_ABI } from './utils/abi/olaCompoundAbi';
 import { CUSTOM_BILL_ABI } from 'src/bills/abi/CustomBill.abi';
+import { MASTER_APE_ABI } from './utils/abi/masterApeAbi';
 
 @Injectable()
 export class StatsService {
@@ -77,7 +72,6 @@ export class StatsService {
     private subgraphService: SubgraphService,
     private priceService: PriceService,
     private configService: ChainConfigService,
-    private bitqueryService: BitqueryService,
   ) {}
 
   createTvlStats(stats) {
@@ -253,9 +247,12 @@ export class StatsService {
 
       // Filter through farms on strapi, assign applicable values from stats
       featuredFarms.forEach((element) => {
-        const { name: farmName, address, poolIndex, apr } = farms.find(
-          ({ poolIndex }) => element === poolIndex,
-        );
+        const {
+          name: farmName,
+          address,
+          poolIndex,
+          apr,
+        } = farms.find(({ poolIndex }) => element === poolIndex);
 
         // Format string to make harambe happy
         const name = farmName.replace(/[\[\]]/g, '').slice(0, -3);
@@ -340,22 +337,19 @@ export class StatsService {
   async getAllLendingMarketData(): Promise<LendingMarket[]> {
     const lendingData: LendingMarket[] = [];
     const allLendingMarkets = lendingMarkets();
-    const olaCompoundLensContract = this.configService.getData<string>(`56.olaCompoundLens`)
+    const olaCompoundLensContract =
+      this.configService.getData<string>(`56.olaCompoundLens`);
 
-    const callsMetadata = allLendingMarkets.map( markets => (
-      {
-        address: olaCompoundLensContract,
-        name: 'cTokenMetadata',
-        params:[markets.contract]
-      }
-    ))
-    const callsUnderlying = allLendingMarkets.map( markets => (
-      {
-        address: olaCompoundLensContract,
-        name: 'cTokenUnderlyingPrice',
-        params:[markets.contract]
-      }
-    ))
+    const callsMetadata = allLendingMarkets.map((markets) => ({
+      address: olaCompoundLensContract,
+      name: 'cTokenMetadata',
+      params: [markets.contract],
+    }));
+    const callsUnderlying = allLendingMarkets.map((markets) => ({
+      address: olaCompoundLensContract,
+      name: 'cTokenUnderlyingPrice',
+      params: [markets.contract],
+    }));
     const allMetada = await multicall(OLA_COMPOUND_ABI, callsMetadata);
     const allUnderlying = await multicall(OLA_COMPOUND_ABI, callsUnderlying);
     for (let i = 0; i < allLendingMarkets.length; i++) {
@@ -371,9 +365,7 @@ export class StatsService {
         reserveFactorMantissa,
       } = allMetada[i][0];
 
-      const {
-        underlyingPrice,
-      } = allUnderlying[i][0];
+      const { underlyingPrice } = allUnderlying[i][0];
 
       const apys = calculateSupplyAndBorrowApys(
         borrowRatePerBlock,
@@ -432,12 +424,10 @@ export class StatsService {
         56,
         this.configService.getData<string>(`56.apePriceGetter`),
       );
-      const callsBill = allBills.map( bill => (
-        {
-          address: bill.contractAddress,
-          name: 'trueBillPrice',
-        }
-      ))
+      const callsBill = allBills.map((bill) => ({
+        address: bill.contractAddress,
+        name: 'trueBillPrice',
+      }));
       const allCustomBill = await multicall(CUSTOM_BILL_ABI, callsBill);
       // Go through all bills in the yield repo, get applicable data in TreasuryBill format
       for (let i = 0; i < allBills.length; i++) {
@@ -448,7 +438,7 @@ export class StatsService {
           rewardToken: earnToken,
           contractAddress: contract,
         } = bill;
-        
+
         const lpWithPrice = tokenPrices.find(
           (token) =>
             token.address.toLowerCase() === lpToken.address.toLowerCase(),
@@ -458,7 +448,7 @@ export class StatsService {
             token.address.toLowerCase() === earnToken.address.toLowerCase(),
         );
 
-        const trueBillPrice = allCustomBill[i][0]
+        const trueBillPrice = allCustomBill[i][0];
 
         const discount =
           ((earnTokenWithPrice.price -
@@ -482,7 +472,7 @@ export class StatsService {
   }
 
   // Function called on /stats/tvl endpoint
-  async getTvlStats(): Promise<GeneralStatsChain> {
+  async getTvlStats(prices?: any, burnInfo?: any): Promise<GeneralStatsChain> {
     try {
       // FIRST CHECK: Cache
       // checks to see if there is a chancedValue at 'calculateTVLStats'. If there is one, console log a note & return it.
@@ -510,7 +500,7 @@ export class StatsService {
 
       // 2. Start processessing an updated version of the tvlstats document
       // This function updates the cache and database.
-      this.calculateTvlStats();
+      this.calculateTvlStats(prices, burnInfo);
 
       // 3. Go ahead and query the database and return the most recent version we have.
       const tvl: any = await this.findTvlStats();
@@ -522,26 +512,30 @@ export class StatsService {
   }
 
   // Function called to get updated TVL stats
-  async calculateTvlStats() {
+  async calculateTvlStats(prices?: any, burnInfo?: any) {
     try {
       this.logger.log('Attemping to generate new TVL Stats...');
       const [
         lendingTvl,
         polygonTvl,
         bscTvl,
-        { burntAmount, totalSupply, circulatingSupply },
-        prices,
+        //{ burntAmount, totalSupply, circulatingSupply },
+        //prices,
         { circulatingSupply: gnanaCirculatingSupply },
         partnerCount,
       ] = await Promise.all([
         this.getLendingTvl(),
         this.subgraphService.getLiquidityPolygonData(),
         this.subgraphService.getVolumeData(),
-        this.getBurnAndSupply(),
-        this.priceService.getTokenPrices(),
+        //this.getBurnAndSupply(),
+        //this.priceService.getTokenPrices(),
         this.getGnanaSupply(),
         this.getPartnerCount(),
       ]);
+      if (!prices) prices = await this.priceService.getTokenPrices();
+      if (!burnInfo) burnInfo = await this.getBurnAndSupply();
+
+      const { burntAmount, totalSupply, circulatingSupply } = burnInfo;
       const priceUSD = prices[bananaAddress()].usd;
       const poolsTvlBsc = await this.getTvlBsc();
       const tvl: GeneralStatsChain = {
@@ -589,53 +583,6 @@ export class StatsService {
     }
   }
 
-  async getStatsForWallet(wallet): Promise<WalletStats> {
-    try {
-      const bananaContract = getContract(ERC20_ABI, bananaAddress());
-
-      let walletStats: WalletStats = {
-        tvl: 0,
-        bananaPrice: 0,
-        aggregateApr: 0,
-        aggregateAprPerDay: 0,
-        aggregateAprPerWeek: 0,
-        aggregateAprPerMonth: 0,
-        dollarsEarnedPerDay: 0,
-        dollarsEarnedPerWeek: 0,
-        dollarsEarnedPerMonth: 0,
-        dollarsEarnedPerYear: 0,
-        bananasEarnedPerDay: 0,
-        bananasEarnedPerWeek: 0,
-        bananasEarnedPerMonth: 0,
-        bananasEarnedPerYear: 0,
-        bananasInWallet: 0,
-        pendingRewardUsd: 0,
-        pendingRewardBanana: 0,
-      };
-
-      const [poolPrices, bananasInWallet] = await Promise.all([
-        this.getCalculateStats(),
-        this.getTokenBalanceOfAddress(bananaContract, wallet),
-      ]);
-
-      walletStats.bananaPrice = poolPrices.bananaPrice;
-      walletStats.bananasInWallet = bananasInWallet;
-
-      walletStats = await this.calculateWalletStats(
-        walletStats,
-        poolPrices,
-        wallet,
-      );
-
-      return walletStats;
-    } catch (error) {
-      if (error.code == 'INVALID_ARGUMENT')
-        throw new WalletInvalidHttpException();
-      console.log(error);
-      throw new Error(error.code);
-    }
-  }
-
   async getCalculateStats() {
     const cachedValue = await this.cacheManager.get('calculateStats');
     if (cachedValue) {
@@ -658,14 +605,12 @@ export class StatsService {
 
     const lendingData = await this.getAllLendingMarketData();
     const bills = await this.getAllBillsData();
-    
-    const poolInfos = await this.calculatePoolInfo(masterApeContract);
 
+    const poolInfos = await this.calculatePoolInfo(masterApeContract);
     const [{ totalAllocPoints, rewardsPerDay }, prices] = await Promise.all([
-      this.getAllocPointAndRewards(masterApeContract),
+      this.getAllocPointAndRewards(),
       this.priceService.getTokenPrices(),
     ]);
-
     // If Banana price not returned from Subgraph, calculating using pools
     if (!prices[bananaAddress()]) {
       prices[bananaAddress()] = {
@@ -680,15 +625,13 @@ export class StatsService {
 
     const priceUSD = prices[bananaAddress()].usd;
 
-    const [
-      tokens,
+    const [tokens, { burntAmount, totalSupply, circulatingSupply }] =
+      await Promise.all([this.getTokens(poolInfos), this.getBurnAndSupply()]);
+
+    const { tvl, totalLiquidity, totalVolume } = await this.getTvlStats(
+      prices,
       { burntAmount, totalSupply, circulatingSupply },
-      { tvl, totalLiquidity, totalVolume },
-    ] = await Promise.all([
-      this.getTokens(poolInfos),
-      this.getBurnAndSupply(),
-      this.getTvlStats(),
-    ]);
+    );
 
     const poolPrices: GeneralStats = {
       bananaPrice: priceUSD,
@@ -744,22 +687,24 @@ export class StatsService {
   async calculatePoolInfo(masterApeContract) {
     // Uses single multicall
     const farmInfo = await this.getAllFarmInfo(masterApeContract);
-
-    return await Promise.all(
-      [...Array(farmInfo.length).keys()].map(async (x) =>
-        this.getFarmInfo(farmInfo[x], x),
-      ),
-    );
+    return await this.getFarmInfoV2(farmInfo);
   }
 
-  async getAllocPointAndRewards(masterApeContract) {
-    const [totalAllocPoints, rewardsPerDay] = await Promise.all([
-      masterApeContract.methods.totalAllocPoint().call(),
-      (((await masterApeContract.methods.cakePerBlock().call()) / 1e18) *
-        86400) /
-        3,
+  async getAllocPointAndRewards() {
+    const masterApeContract = this.configService.getData<string>(
+      '56.contracts.masterApe',
+    );
+    const [totalAllocPoints, cakePerBlock] = await multicall(MASTER_APE_ABI, [
+      {
+        address: masterApeContract,
+        name: 'totalAllocPoint',
+      },
+      {
+        address: masterApeContract,
+        name: 'cakePerBlock',
+      },
     ]);
-
+    const rewardsPerDay = ((cakePerBlock / 1e18) * 86400) / 3;
     return { totalAllocPoints, rewardsPerDay };
   }
 
@@ -781,93 +726,161 @@ export class StatsService {
 
     const farmInfo = await multi.aggregate([...allCalls]);
 
-    const filteredFarmInfo = farmInfo.map((farm) => {
+    const filteredFarmInfo = farmInfo.map((farm, index) => {
       return {
         lpToken: farm[0],
         allocPoint: farm[1],
         lastRewardBlock: farm[2],
+        index,
       };
     });
 
     return filteredFarmInfo;
   }
 
-  async getFarmInfo(poolInfo, poolIndex) {
-    // Determine if Bep20 or Lp token
-    const poolToken =
-      poolIndex !== 0 &&
-      poolIndex !== 75 &&
-      poolIndex !== 112 &&
-      poolIndex !== 162 &&
-      poolIndex !== 190
-        ? await this.getLpInfo(poolInfo.lpToken, masterApeContractAddress())
-        : await this.getTokenInfo(poolInfo.lpToken, masterApeContractAddress());
+  async getFarmInfoV2(farms) {
+    const tokenIndex = [0, 75, 112, 162, 190];
+    const lpList = farms.filter((farm, index) => !tokenIndex.includes(index));
+    const tokenList = farms.filter((farm, index) => tokenIndex.includes(index));
+    const callsReserve = mappingCalls('lpToken', lpList, 'getReserves');
+    const callsDecimals = mappingCalls('lpToken', lpList, 'decimals');
+    const callsToken0 = mappingCalls('lpToken', lpList, 'token0');
+    const callsToken1 = mappingCalls('lpToken', lpList, 'token1');
+    const callsTotalSupply = mappingCalls('lpToken', lpList, 'totalSupply');
+    const callsBalanceOf = mappingCalls('lpToken', lpList, 'balanceOf', [
+      masterApeContractAddress(),
+    ]);
 
-    return {
-      address: poolInfo.lpToken,
-      allocPoints: poolInfo.allocPoint ?? 1,
-      poolToken,
-      poolIndex,
-      lastRewardBlock: poolInfo.lastRewardBlock,
-    };
-  }
+    const [
+      multiReserve,
+      multiDecimals,
+      multiToken0,
+      multiToken1,
+      multiTotalSupply,
+      multiBalanceOf,
+    ] = await Promise.all([
+      multicall(LP_ABI, callsReserve),
+      multicall(LP_ABI, callsDecimals),
+      multicall(LP_ABI, callsToken0),
+      multicall(LP_ABI, callsToken1),
+      multicall(LP_ABI, callsTotalSupply),
+      multicall(LP_ABI, callsBalanceOf),
+    ]);
+    const lpInfo = [];
+    for (let index = 0; index < lpList.length; index++) {
+      const totalSupply =
+        multiTotalSupply[index][0] / 10 ** multiDecimals[index][0];
+      const staked = multiBalanceOf[index][0] / 10 ** multiDecimals[index][0];
 
-  async getLpInfo(tokenAddress, stakingAddress) {
-    try {
-      const [
-        reserves,
-        decimals,
-        token0,
-        token1,
-        supply,
-        balanceOf,
-      ] = await multicall(LP_ABI, [
-        {
-          address: tokenAddress,
-          name: 'getReserves',
-        },
-        {
-          address: tokenAddress,
-          name: 'decimals',
-        },
-        {
-          address: tokenAddress,
-          name: 'token0',
-        },
-        {
-          address: tokenAddress,
-          name: 'token1',
-        },
-        {
-          address: tokenAddress,
-          name: 'totalSupply',
-        },
-        {
-          address: tokenAddress,
-          name: 'balanceOf',
-          params: [stakingAddress],
-        },
-      ]);
-
-      const totalSupply = supply / 10 ** decimals[0];
-      const staked = balanceOf / 10 ** decimals[0];
-
-      const q0 = reserves._reserve0;
-      const q1 = reserves._reserve1;
-      return {
-        address: tokenAddress,
-        token0: token0[0],
+      const q0 = multiReserve[index]._reserve0;
+      const q1 = multiReserve[index]._reserve1;
+      const poolToken = {
+        address: lpList[index].lpToken,
+        token0: multiToken0[index][0],
         q0,
-        token1: token1[0],
+        token1: multiToken1[index][0],
         q1,
         totalSupply,
-        stakingAddress,
+        stakingAddress: masterApeContractAddress(),
         staked,
-        decimals: decimals[0],
-        tokens: [token0[0], token1[0]],
+        decimals: multiDecimals[index][0],
+        tokens: [multiToken0[index][0], multiToken1[index][0]],
       };
+
+      lpInfo.push({
+        address: lpList[index].lpToken,
+        allocPoints: lpList[index].allocPoint ?? 1,
+        poolToken,
+        poolIndex: lpList[index].index,
+        lastRewardBlock: lpList[index].lastRewardBlock,
+      });
+    }
+    await this.mappingInformationToken(tokenList, lpInfo);
+
+    const sort = lpInfo.sort((a, b) => a.poolIndex - b.poolIndex);
+
+    return sort;
+  }
+
+  async mappingInformationToken(tokenList, list) {
+    try {
+      const callsTokenName = mappingCalls('lpToken', tokenList, 'name');
+      const callsTokenSymbol = mappingCalls('lpToken', tokenList, 'symbol');
+      const callsTokenTotalSupply = mappingCalls(
+        'lpToken',
+        tokenList,
+        'totalSupply',
+      );
+      const callsTokenDecimals = mappingCalls('lpToken', tokenList, 'decimals');
+      const callsTokenBalanceOf = mappingCalls(
+        'lpToken',
+        tokenList,
+        'balanceOf',
+        [masterApeContractAddress()],
+      );
+      const [
+        multiTokenName,
+        multiTokenSymbol,
+        multiTokenTotalSupply,
+        multiTokenDecimals,
+        multiTokenBalanceOf,
+      ] = await Promise.all([
+        multicall(ERC20_ABI, callsTokenName),
+        multicall(ERC20_ABI, callsTokenSymbol),
+        multicall(ERC20_ABI, callsTokenTotalSupply),
+        multicall(ERC20_ABI, callsTokenDecimals),
+        multicall(ERC20_ABI, callsTokenBalanceOf),
+      ]);
+      for (let index = 0; index < tokenList.length; index++) {
+        const tokenAddress = tokenList[index].lpToken;
+        let info;
+        if (tokenAddress == '0x0000000000000000000000000000000000000000') {
+          info = {
+            address: tokenAddress,
+            name: 'Binance',
+            symbol: 'BNB',
+            totalSupply: 1e8,
+            decimals: 18,
+            staked: 0,
+            tokens: [tokenAddress],
+          };
+        }
+
+        // HOTFIX for Rocket token (Rocket contract currently incompatible with ERC20_ABI)
+        if (tokenAddress == '0x3bA5aee47Bb7eAE40Eb3D06124a74Eb89Da8ffd2') {
+          const contract = getContract(
+            LP_ABI,
+            '0x93fa1A6357De25031311f784342c33A26Cb1C87A', // ROCKET-BNB LP pair address
+          );
+          const reserves = await contract.methods.getReserves().call();
+          const q0 = reserves._reserve0 / 10 ** 18;
+
+          info = {
+            address: tokenAddress,
+            name: 'Rocket',
+            symbol: 'ROCKET',
+            totalSupply: 1000000000,
+            decimals: 18,
+            staked: q0,
+            tokens: [tokenAddress],
+          };
+        }
+        if (!info) {
+          info = {
+            address: tokenAddress,
+            name: multiTokenName[index][0],
+            symbol: multiTokenSymbol[index][0],
+            totalSupply: multiTokenTotalSupply[index][0],
+            decimals: multiTokenDecimals[index][0],
+            staked:
+              multiTokenBalanceOf[index][0] /
+              10 ** multiTokenDecimals[index][0],
+            tokens: [tokenAddress],
+          };
+        }
+        list.push(info);
+      }
     } catch (error) {
-      console.log('inusual ', tokenAddress);
       console.log(error);
     }
   }
@@ -980,13 +993,25 @@ export class StatsService {
   }
 
   async getGnanaSupply() {
-    const gnanaContract = getContract(ERC20_ABI, goldenBananaAddress());
-
-    const decimals = await gnanaContract.methods.decimals().call();
-
-    const [treasury, supply] = await Promise.all([
-      gnanaContract.methods.balanceOf(gBananaTreasury()).call(),
-      gnanaContract.methods.totalSupply().call(),
+    const gBananaContract = this.configService.getData<string>(
+      `56.contracts.goldenBanana`,
+    );
+    const [decimals, treasury, supply] = await multicall(ERC20_ABI, [
+      {
+        address: gBananaContract,
+        name: 'decimals',
+      },
+      {
+        address: gBananaContract,
+        name: 'balanceOf',
+        params: [
+          this.configService.getData<string>(`56.contracts.gBananaTreasury`),
+        ],
+      },
+      {
+        address: gBananaContract,
+        name: 'totalSupply',
+      },
     ]);
 
     const treasuryAmount = treasury / 10 ** decimals;
@@ -1005,9 +1030,11 @@ export class StatsService {
       [],
       poolInfos.filter((x) => x.poolToken).map((x) => x.poolToken.tokens),
     );
-
+    const tokenListReduce = tokenAddresses.filter(
+      (thing, index, self) => index === self.findIndex((t) => t === thing),
+    );
     await Promise.all(
-      tokenAddresses.map(async (address) => {
+      tokenListReduce.map(async (address) => {
         tokens[address] = await this.getTokenInfo(
           address,
           masterApeContractAddress(),
@@ -1021,51 +1048,192 @@ export class StatsService {
   async mappingIncetivizedPools(poolPrices, prices) {
     const currentBlockNumber = await getCurrentBlock();
     const pools = await this.getIncentivizedPools();
-    poolPrices.incentivizedPools = await Promise.all(
-      pools.map(async (pool) =>
-        this.getIncentivizedPoolInfo(pool, prices, currentBlockNumber),
-      ),
+    const incentivizedPools = await this.getIncentivizedPoolInfoV2(
+      pools,
+      prices,
+      currentBlockNumber,
     );
+
+    poolPrices.incentivizedPools = incentivizedPools;
+
     poolPrices.incentivizedPools = poolPrices.incentivizedPools.filter(
       (x) => x,
     ); //filter null pools
   }
 
-  async getIncentivizedPoolInfo(pool, prices, currentBlockNumber) {
-    const active =
-      pool.startBlock <= currentBlockNumber &&
-      pool.bonusEndBlock >= currentBlockNumber;
-    const poolContract = getContract(pool.abi, pool.address);
+  async getIncentivizedPoolInfoV2(pools, prices, currentBlockNumber) {
+    const poolsNormal = pools.filter((pool) => !pool.stakeTokenIsLp);
+    const poolsLP = pools.filter((pool) => pool.stakeTokenIsLp);
+    const listAddresses = mappingCalls(
+      'address',
+      poolsNormal,
+      'rewardPerBlock',
+    );
+    const listStakeTokenSymbol = mappingCalls(
+      'stakeToken',
+      poolsNormal,
+      'symbol',
+    );
+    const listStakeTokenDecimals = mappingCalls(
+      'stakeToken',
+      poolsNormal,
+      'decimals',
+    );
+    const listRewardTokenSymbol = mappingCalls(
+      'rewardToken',
+      poolsNormal,
+      'symbol',
+    );
+    const listRewardTokenDecimals = mappingCalls(
+      'rewardToken',
+      poolsNormal,
+      'decimals',
+    );
+    const listStakeTokenTotalSupply = mappingCalls(
+      'stakeToken',
+      poolsNormal,
+      'totalSupply',
+    );
+    const listStakeTokenBalanceOf = poolsNormal.map((pool) => ({
+      address: pool.stakeToken,
+      name: 'balanceOf',
+      params: [pool.address],
+    }));
+    const reduceStakeTokenSymbol = reduceList(listStakeTokenSymbol, 'address');
+    const reduceStakeTokenDecimals = reduceList(
+      listStakeTokenDecimals,
+      'address',
+    );
+    const reduceStakeTokenTotalSupply = reduceList(
+      listStakeTokenTotalSupply,
+      'address',
+    );
+    const reduceStakeTokenBalanceOf = reduceList(
+      listStakeTokenBalanceOf,
+      'address',
+    );
+    const reduceRewardTokenSymbol = reduceList(
+      listRewardTokenSymbol,
+      'address',
+    );
+    const reduceRewardTokenDecimals = reduceList(
+      listRewardTokenDecimals,
+      'address',
+    );
+    const [
+      multiName,
+      multiStakedTokenDecimals,
+      multiRewardDecimals,
+      multiRewardTokenSymbol,
+      multiTotalSupply,
+      multiStakedSupply,
+      multiAddresses,
+    ] = await Promise.all([
+      multicall(ERC20_ABI, reduceStakeTokenSymbol),
+      multicall(ERC20_ABI, reduceStakeTokenDecimals),
+      multicall(ERC20_ABI, reduceRewardTokenSymbol),
+      multicall(ERC20_ABI, reduceRewardTokenDecimals),
+      multicall(ERC20_ABI, reduceStakeTokenTotalSupply),
+      multicall(ERC20_ABI, reduceStakeTokenBalanceOf),
+      multicall(BEP20_REWARD_APE_ABI, listAddresses),
+    ]);
+    const incentivizedPools = [];
 
-    if (pool.stakeTokenIsLp) {
-      const [
-        reserves,
-        stakedTokenDecimals,
-        t0Address,
-        t1Address,
-      ] = await multicall(LP_ABI, [
-        {
-          address: pool.stakeToken,
-          name: 'getReserves',
-        },
-        {
-          address: pool.stakeToken,
-          name: 'decimals',
-        },
-        {
-          address: pool.stakeToken,
-          name: 'token0',
-        },
-        {
-          address: pool.stakeToken,
-          name: 'token1',
-        },
-      ]);
+    for (let index = 0; index < poolsNormal.length; index++) {
+      const pool = poolsNormal[index];
+      const active =
+        pool.startBlock <= currentBlockNumber &&
+        pool.bonusEndBlock >= currentBlockNumber;
+      let stakedTokenPrice = getParameterCaseInsensitive(
+        prices,
+        pool.stakeToken,
+      )?.usd;
 
-      const rewardTokenContract = getContract(ERC20_ABI, pool.rewardToken);
-      const rewardDecimals = await rewardTokenContract.methods
-        .decimals()
-        .call();
+      // If token is not trading on DEX, assign price = 0
+      if (isNaN(stakedTokenPrice)) {
+        stakedTokenPrice = 0;
+      }
+
+      let rewardTokenPrice = getParameterCaseInsensitive(
+        prices,
+        pool.rewardToken,
+      )?.usd;
+
+      // If token is not trading on DEX, assign price = 0
+      if (isNaN(rewardTokenPrice)) {
+        rewardTokenPrice = 0;
+      }
+      const positionStakeTokenTotalSupply =
+        reduceStakeTokenTotalSupply.findIndex(
+          (x) => x.address === pool.stakeToken,
+        );
+      const positionRewardToken = reduceRewardTokenSymbol.findIndex(
+        (x) => x.address === pool.rewardToken,
+      );
+      let totalSupply = multiTotalSupply[positionStakeTokenTotalSupply][0];
+      let stakedSupply = multiStakedSupply[positionStakeTokenTotalSupply][0];
+      const stakedTokenDecimals =
+        multiStakedTokenDecimals[positionStakeTokenTotalSupply][0];
+
+      const rewardTokenDecimals = multiRewardDecimals[positionRewardToken][0];
+      totalSupply = totalSupply / 10 ** stakedTokenDecimals;
+      stakedSupply = stakedSupply / 10 ** stakedTokenDecimals;
+      const rewardsPerBlock = multiAddresses[index] / 10 ** rewardTokenDecimals;
+      const tvl = totalSupply * stakedTokenPrice;
+      const stakedTvl = (stakedSupply * tvl) / totalSupply;
+
+      let apr = 0;
+      if (active && stakedTokenPrice != 0) {
+        apr =
+          (rewardTokenPrice * ((rewardsPerBlock * 86400) / 3) * 365) /
+          stakedTvl;
+      }
+
+      incentivizedPools.push({
+        id: pool.sousId,
+        name: multiName[positionStakeTokenTotalSupply][0],
+        address: pool.address,
+        active,
+        blocksRemaining: active ? pool.bonusEndBlock - currentBlockNumber : 0,
+        rewardTokenAddress: pool.rewardToken,
+        stakedTokenAddress: pool.stakeToken,
+        totalSupply,
+        stakedSupply,
+        rewardDecimals: rewardTokenDecimals,
+        stakedTokenDecimals: stakedTokenDecimals,
+        tvl,
+        stakedTvl,
+        apr,
+        rewardTokenPrice,
+        rewardTokenSymbol: multiRewardTokenSymbol[positionRewardToken][0],
+        price: stakedTokenPrice,
+        abi: pool.abi,
+      });
+    }
+    for (let index = 0; index < poolsLP.length; index++) {
+      const pool = poolsLP[index];
+      const active =
+        pool.startBlock <= currentBlockNumber &&
+        pool.bonusEndBlock >= currentBlockNumber;
+      const [reserves, stakedTokenDecimals, t0Address, t1Address] =
+        await multicall(LP_ABI, [
+          {
+            address: pool.stakeToken,
+            name: 'getReserves',
+          },
+          {
+            address: pool.stakeToken,
+            name: 'decimals',
+          },
+          {
+            address: pool.stakeToken,
+            name: 'token0',
+          },
+          {
+            address: pool.stakeToken,
+            name: 'token1',
+          },
+        ]);
 
       const [
         token0decimals,
@@ -1073,6 +1241,7 @@ export class StatsService {
         rewardTokenSymbol,
         t0Symbol,
         t1Symbol,
+        rewardDecimals,
       ] = await multicall(ERC20_ABI, [
         {
           address: t0Address[0],
@@ -1094,6 +1263,10 @@ export class StatsService {
           address: t1Address[0],
           name: 'symbol',
         },
+        {
+          address: pool.rewardToken,
+          name: 'decimals',
+        },
       ]);
 
       let [totalSupply, stakedSupply] = await multicall(LP_ABI, [
@@ -1110,6 +1283,7 @@ export class StatsService {
 
       totalSupply = totalSupply / 10 ** stakedTokenDecimals[0];
       stakedSupply = stakedSupply / 10 ** stakedTokenDecimals[0];
+      const poolContract = getContract(pool.abi, pool.address);
       const rewardsPerBlock =
         (await poolContract.methods.rewardPerBlock().call()) /
         10 ** rewardDecimals;
@@ -1143,7 +1317,7 @@ export class StatsService {
         ? (rewardTokenPrice * ((rewardsPerBlock * 86400) / 3) * 365) / stakedTvl
         : 0;
 
-      return {
+      incentivizedPools.push({
         id: pool.sousId,
         name: createLpPairName(t0Symbol[0], t1Symbol[0]),
         address: pool.address,
@@ -1169,168 +1343,9 @@ export class StatsService {
         rewardTokenSymbol: rewardTokenSymbol[0],
         price: tvl / totalSupply,
         abi: pool.abi,
-      };
-    } else {
-      let stakedTokenPrice = getParameterCaseInsensitive(
-        prices,
-        pool.stakeToken,
-      )?.usd;
-
-      // If token is not trading on DEX, assign price = 0
-      if (isNaN(stakedTokenPrice)) {
-        stakedTokenPrice = 0;
-      }
-
-      let rewardTokenPrice = getParameterCaseInsensitive(
-        prices,
-        pool.rewardToken,
-      )?.usd;
-
-      // If token is not trading on DEX, assign price = 0
-      if (isNaN(rewardTokenPrice)) {
-        rewardTokenPrice = 0;
-      }
-
-      const [
-        name,
-        stakedTokenDecimals,
-        rewardDecimals,
-        rewardTokenSymbol,
-      ] = await multicall(ERC20_ABI, [
-        {
-          address: pool.stakeToken,
-          name: 'symbol',
-        },
-        {
-          address: pool.stakeToken,
-          name: 'decimals',
-        },
-        {
-          address: pool.rewardToken,
-          name: 'decimals',
-        },
-        {
-          address: pool.rewardToken,
-          name: 'symbol',
-        },
-      ]);
-
-      let [totalSupply, stakedSupply] = await multicall(ERC20_ABI, [
-        {
-          address: pool.stakeToken,
-          name: 'totalSupply',
-        },
-        {
-          address: pool.stakeToken,
-          name: 'balanceOf',
-          params: [pool.address],
-        },
-      ]);
-      totalSupply = totalSupply / 10 ** stakedTokenDecimals[0];
-      stakedSupply = stakedSupply / 10 ** stakedTokenDecimals[0];
-      const rewardsPerBlock =
-        (await poolContract.methods.rewardPerBlock().call()) /
-        10 ** rewardDecimals[0];
-      const tvl = totalSupply * stakedTokenPrice;
-      const stakedTvl = (stakedSupply * tvl) / totalSupply;
-
-      let apr = 0;
-      if (active && stakedTokenPrice != 0) {
-        apr =
-          (rewardTokenPrice * ((rewardsPerBlock * 86400) / 3) * 365) /
-          stakedTvl;
-      }
-
-      return {
-        id: pool.sousId,
-        name: name[0],
-        address: pool.address,
-        active,
-        blocksRemaining: active ? pool.bonusEndBlock - currentBlockNumber : 0,
-        rewardTokenAddress: pool.rewardToken,
-        stakedTokenAddress: pool.stakeToken,
-        totalSupply,
-        stakedSupply,
-        rewardDecimals: rewardDecimals[0],
-        stakedTokenDecimals: stakedTokenDecimals[0],
-        tvl,
-        stakedTvl,
-        apr,
-        rewardTokenPrice,
-        rewardTokenSymbol: rewardTokenSymbol[0],
-        price: stakedTokenPrice,
-        abi: pool.abi,
-      };
+      });
     }
-  }
-
-  async getTokenBalanceOfAddress(tokenContract, address): Promise<any> {
-    const decimals = await tokenContract.methods.decimals().call();
-    return (
-      (await tokenContract.methods.balanceOf(address).call()) / 10 ** decimals
-    );
-  }
-
-  async calculateWalletStats(walletStats: WalletStats, poolPrices, wallet) {
-    const masterApeContract = masterApeContractWeb();
-    let totalApr = 0;
-
-    const [pools, farms, incentivezed] = await Promise.all([
-      getWalletStatsForPools(wallet, poolPrices.pools, masterApeContract),
-      getWalletStatsForFarms(wallet, poolPrices.farms, masterApeContract),
-      getWalletStatsForIncentivizedPools(wallet, poolPrices.incentivizedPools),
-    ]);
-    walletStats.pools = pools;
-    walletStats.farms = farms;
-    walletStats.incentivizedPools = incentivezed;
-
-    walletStats.pools.forEach((pool) => {
-      walletStats.pendingRewardUsd += pool.pendingRewardUsd;
-      walletStats.pendingRewardBanana += pool.pendingReward;
-      walletStats.dollarsEarnedPerDay += pool.dollarsEarnedPerDay;
-      walletStats.dollarsEarnedPerWeek += pool.dollarsEarnedPerWeek;
-      walletStats.dollarsEarnedPerMonth += pool.dollarsEarnedPerMonth;
-      walletStats.dollarsEarnedPerYear += pool.dollarsEarnedPerYear;
-      walletStats.bananasEarnedPerDay += pool.tokensEarnedPerDay;
-      walletStats.bananasEarnedPerWeek += pool.tokensEarnedPerWeek;
-      walletStats.bananasEarnedPerMonth += pool.tokensEarnedPerMonth;
-      walletStats.bananasEarnedPerYear += pool.tokensEarnedPerYear;
-      walletStats.tvl += pool.stakedTvl;
-      totalApr += pool.stakedTvl * pool.apr;
-    });
-
-    walletStats.farms.forEach((farm) => {
-      walletStats.pendingRewardUsd += farm.pendingRewardUsd;
-      walletStats.pendingRewardBanana += farm.pendingReward;
-      walletStats.dollarsEarnedPerDay += farm.dollarsEarnedPerDay;
-      walletStats.dollarsEarnedPerWeek += farm.dollarsEarnedPerWeek;
-      walletStats.dollarsEarnedPerMonth += farm.dollarsEarnedPerMonth;
-      walletStats.dollarsEarnedPerYear += farm.dollarsEarnedPerYear;
-      walletStats.bananasEarnedPerDay += farm.tokensEarnedPerDay;
-      walletStats.bananasEarnedPerWeek += farm.tokensEarnedPerWeek;
-      walletStats.bananasEarnedPerMonth += farm.tokensEarnedPerMonth;
-      walletStats.bananasEarnedPerYear += farm.tokensEarnedPerYear;
-      walletStats.tvl += farm.stakedTvl;
-      totalApr += farm.stakedTvl * farm.apr;
-    });
-
-    walletStats.incentivizedPools.forEach((incentivizedPool) => {
-      walletStats.pendingRewardUsd += incentivizedPool.pendingRewardUsd;
-      walletStats.dollarsEarnedPerDay += incentivizedPool.dollarsEarnedPerDay;
-      walletStats.dollarsEarnedPerWeek += incentivizedPool.dollarsEarnedPerWeek;
-      walletStats.dollarsEarnedPerMonth +=
-        incentivizedPool.dollarsEarnedPerMonth;
-      walletStats.dollarsEarnedPerYear += incentivizedPool.dollarsEarnedPerYear;
-      walletStats.tvl += incentivizedPool.stakedTvl;
-      totalApr += incentivizedPool.stakedTvl * incentivizedPool.apr;
-    });
-
-    walletStats.aggregateApr = walletStats.tvl ? totalApr / walletStats.tvl : 0;
-    walletStats.aggregateAprPerDay = walletStats.aggregateApr / 365;
-    walletStats.aggregateAprPerWeek = (walletStats.aggregateApr * 7) / 365;
-    walletStats.aggregateAprPerMonth = (walletStats.aggregateApr * 30) / 365;
-
-    return walletStats;
+    return incentivizedPools;
   }
 
   async getIncentivizedPools() {
@@ -1346,21 +1361,11 @@ export class StatsService {
         rewardPerBlock: pool.rewardPerBlock,
         startBlock: pool.startBlock,
         bonusEndBlock: pool.bonusEndBlock,
-        abi: this.getABI(pool.abi),
+        abi: BEP20_REWARD_APE_ABI,
       }))
       .filter(({ sousId }) => sousId !== 0);
 
     return pools;
-  }
-
-  getABI(value) {
-    switch (value) {
-      case 'BEP20_REWARD_APE_ABI':
-        return BEP20_REWARD_APE_ABI;
-
-      default:
-        return BEP20_REWARD_APE_ABI;
-    }
   }
 
   async getLendingTvl() {

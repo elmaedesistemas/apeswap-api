@@ -58,9 +58,8 @@ export class Web3Service {
   }
 
   getWallet(network: Network, privateKey: string): any {
-    const wallet = this.getHttpClient(network).eth.accounts.privateKeyToAccount(
-      privateKey,
-    );
+    const wallet =
+      this.getHttpClient(network).eth.accounts.privateKeyToAccount(privateKey);
     return wallet;
   }
 
