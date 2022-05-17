@@ -672,7 +672,7 @@ export class StatsService {
           prices,
           poolInfos[i].poolToken,
           poolPrices,
-          i,
+          poolInfos[i].poolIndex,
           poolInfos[i].allocPoints,
           totalAllocPoints,
           rewardsPerDay,
