@@ -398,7 +398,7 @@ export class StatsService {
     } catch (error) {
       this.logger.warn('Pulling Lending Data from database...');
       const generalStats = await this.findGeneralStats();
-      return generalStats.lendingData
+      return generalStats.lendingData;
     }
   }
 
@@ -838,7 +838,7 @@ export class StatsService {
           },
         ],
       );
-      const token =  mappingToken(
+      const token = mappingToken(
         tokenAddress,
         name[0],
         symbol[0],
@@ -846,11 +846,13 @@ export class StatsService {
         decimals[0],
         staked[0] / 10 ** decimals[0],
         [tokenAddress],
-      )
-      this.cacheManager.set(`tokenInfo-${tokenAddress}`, token, {ttl: 900})
+      );
+      this.cacheManager.set(`tokenInfo-${tokenAddress}`, token, { ttl: 900 });
       return token;
     } catch (error) {
-      this.logger.warn(`Pulling Token Info tokenInfo-${tokenAddress} from cache...`);
+      this.logger.warn(
+        `Pulling Token Info tokenInfo-${tokenAddress} from cache...`,
+      );
       return await this.cacheManager.get(`tokenInfo-${tokenAddress}`);
     }
   }
