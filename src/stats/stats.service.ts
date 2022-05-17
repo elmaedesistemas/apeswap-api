@@ -10,7 +10,6 @@ import {
   FarmLPDto,
   GeneralStats,
   HomepageFeatures,
-  PoolTokenDto,
 } from 'src/interfaces/stats/generalStats.dto';
 import { Cache } from 'cache-manager';
 import { PriceService } from './price.service';
@@ -1018,10 +1017,6 @@ export class StatsService {
         listStakeTokenTotalSupply,
         'address',
       );
-      const reduceStakeTokenBalanceOf = reduceList(
-        listStakeTokenBalanceOf,
-        'address',
-      );
       const reduceRewardTokenSymbol = reduceList(
         listRewardTokenSymbol,
         'address',
@@ -1039,13 +1034,13 @@ export class StatsService {
         multicall(ERC20_ABI, reduceStakeTokenSymbol),
         multicall(ERC20_ABI, reduceStakeTokenDecimals),
         multicall(ERC20_ABI, reduceStakeTokenTotalSupply),
-        multicall(ERC20_ABI, reduceStakeTokenBalanceOf),
+        multicall(ERC20_ABI, listStakeTokenBalanceOf),
       ]);
       await sleep(15000);
       const [multiRewardDecimals, multiRewardTokenSymbol, multiAddresses] =
         await Promise.all([
-          multicall(ERC20_ABI, reduceRewardTokenSymbol),
           multicall(ERC20_ABI, reduceRewardTokenDecimals),
+          multicall(ERC20_ABI, reduceRewardTokenSymbol),
           multicall(BEP20_REWARD_APE_ABI, listAddresses),
         ]);
       const incentivizedPools = [];
@@ -1082,7 +1077,7 @@ export class StatsService {
           (x) => x.address === pool.rewardToken,
         );
         let totalSupply = multiTotalSupply[positionStakeTokenTotalSupply][0];
-        let stakedSupply = multiStakedSupply[positionStakeTokenTotalSupply][0];
+        let stakedSupply = multiStakedSupply[index][0];
         const stakedTokenDecimals =
           multiStakedTokenDecimals[positionStakeTokenTotalSupply][0];
 
@@ -1090,10 +1085,9 @@ export class StatsService {
         totalSupply = totalSupply / 10 ** stakedTokenDecimals;
         stakedSupply = stakedSupply / 10 ** stakedTokenDecimals;
         const rewardsPerBlock =
-          multiAddresses[index] / 10 ** rewardTokenDecimals;
+          multiAddresses[index][0] / 10 ** rewardTokenDecimals;
         const tvl = totalSupply * stakedTokenPrice;
         const stakedTvl = (stakedSupply * tvl) / totalSupply;
-
         let apr = 0;
         if (active && stakedTokenPrice != 0) {
           apr =
