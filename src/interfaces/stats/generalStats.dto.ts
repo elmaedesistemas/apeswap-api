@@ -89,3 +89,24 @@ export class HomepageFeatures {
   lendingDetails: LendingFeature[];
   billDetails?: BillFeature[];
 }
+
+export class PoolTokenDto {
+  address: string;
+  token0: string;
+  q0: number;
+  token1: string;
+  q1: number;
+  totalSupply: number;
+  stakingAddress: string;
+  staked: number;
+  decimals: number;
+  tokens: string[];
+}
+
+export class FarmLPDto {
+  address: string;
+  allocPoints: number;
+  poolToken: PoolTokenDto;
+  poolIndex: number;
+  lastRewardBlock: number;
+}

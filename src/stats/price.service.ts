@@ -1,4 +1,11 @@
-import { Injectable, HttpService } from '@nestjs/common';
+import {
+  Injectable,
+  HttpService,
+  CACHE_MANAGER,
+  Inject,
+  Logger,
+} from '@nestjs/common';
+import { Cache } from 'cache-manager';
 import { chunk } from 'lodash';
 import { ChainConfigService } from 'src/config/chain.configuration.service';
 import { SubgraphService } from './subgraph.service';
@@ -7,9 +14,11 @@ import { goldenBananaAddress } from './utils/stats.utils';
 
 @Injectable()
 export class PriceService {
+  private readonly logger = new Logger(PriceService.name);
   private readonly TOKEN_LIST_URL =
     this.configService.getData<string>('tokenListUrl');
   constructor(
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private httpService: HttpService,
     private subgraphService: SubgraphService,
     private configService: ChainConfigService,
@@ -17,18 +26,23 @@ export class PriceService {
 
   async getTokenPrices(): Promise<any> {
     //const prices = await this.getCoinGeckoPrices(); // old coinGeckoPrice price feed
-    const prices = {};
-    const data = await this.subgraphService.getAllPriceData();
+    try {
+      const prices = {};
+      const data = await this.subgraphService.getAllPriceData();
 
-    for (let i = 0; i < data.length; i++) {
-      if (data[i].tokenDayData.length > 0) {
-        prices[data[i].id] = {
-          usd: parseFloat(data[i].tokenDayData[0].priceUSD),
-        };
+      for (let i = 0; i < data.length; i++) {
+        if (data[i].tokenDayData.length > 0) {
+          prices[data[i].id] = {
+            usd: parseFloat(data[i].tokenDayData[0].priceUSD),
+          };
+        }
       }
+      await this.cacheManager.set('allPriceData', prices, { ttl: 300 });
+      return prices;
+    } catch (error) {
+      this.logger.warn('Pulling All Price Data from cache...');
+      return await this.cacheManager.get('allPriceData');
     }
-
-    return prices;
   }
 
   async getTokenPricesv2(chainId: number): Promise<any> {

@@ -7,8 +7,10 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import {
+  FarmLPDto,
   GeneralStats,
   HomepageFeatures,
+  PoolTokenDto,
 } from 'src/interfaces/stats/generalStats.dto';
 import { Cache } from 'cache-manager';
 import { PriceService } from './price.service';
@@ -33,6 +35,9 @@ import {
   lendingMarkets,
   mappingCalls,
   reduceList,
+  mappingInformationLP,
+  mappingInformationToken,
+  mappingToken,
 } from './utils/stats.utils';
 import { Model } from 'mongoose';
 import {
@@ -53,6 +58,9 @@ import { fetchPrices } from 'src/stats/utils/fetchPrices';
 import { OLA_COMPOUND_ABI } from './utils/abi/olaCompoundAbi';
 import { CUSTOM_BILL_ABI } from 'src/bills/abi/CustomBill.abi';
 import { MASTER_APE_ABI } from './utils/abi/masterApeAbi';
+import { GeneralTokenDto } from 'src/interfaces/stats/misc.dto';
+import sleep from 'sleep-promise';
+import { IncentivizedPoolStats } from 'src/interfaces/stats/incentivizedPool.dto';
 
 @Injectable()
 export class StatsService {
@@ -335,62 +343,74 @@ export class StatsService {
   }
 
   async getAllLendingMarketData(): Promise<LendingMarket[]> {
-    const lendingData: LendingMarket[] = [];
-    const allLendingMarkets = lendingMarkets();
-    const olaCompoundLensContract = this.configService.getData<string>(
-      `56.olaCompoundLens`,
-    );
+    this.logger.log(`Attempting to calculate lending market`);
+    try {
+      const lendingData: LendingMarket[] = [];
+      const allLendingMarkets = lendingMarkets();
+      const olaCompoundLensContract =
+        this.configService.getData<string>(`56.olaCompoundLens`);
 
-    const callsMetadata = allLendingMarkets.map((markets) => ({
-      address: olaCompoundLensContract,
-      name: 'cTokenMetadata',
-      params: [markets.contract],
-    }));
-    const callsUnderlying = allLendingMarkets.map((markets) => ({
-      address: olaCompoundLensContract,
-      name: 'cTokenUnderlyingPrice',
-      params: [markets.contract],
-    }));
-    const allMetada = await multicall(OLA_COMPOUND_ABI, callsMetadata);
-    const allUnderlying = await multicall(OLA_COMPOUND_ABI, callsUnderlying);
-    for (let i = 0; i < allLendingMarkets.length; i++) {
-      const market = allLendingMarkets[i];
-      const { name, contract } = market;
-      const {
-        borrowRatePerBlock,
-        underlyingDecimals,
-        totalSupply,
-        cTokenDecimals,
-        exchangeRateCurrent,
-        totalBorrows,
-        reserveFactorMantissa,
-      } = allMetada[i][0];
+      const callsMetadata = allLendingMarkets.map((markets) => ({
+        address: olaCompoundLensContract,
+        name: 'cTokenMetadata',
+        params: [markets.contract],
+      }));
+      const callsUnderlying = allLendingMarkets.map((markets) => ({
+        address: olaCompoundLensContract,
+        name: 'cTokenUnderlyingPrice',
+        params: [markets.contract],
+      }));
+      const allMetada = await multicall(OLA_COMPOUND_ABI, callsMetadata);
+      const allUnderlying = await multicall(OLA_COMPOUND_ABI, callsUnderlying);
+      for (let i = 0; i < allLendingMarkets.length; i++) {
+        const market = allLendingMarkets[i];
+        const { name, contract } = market;
+        const {
+          borrowRatePerBlock,
+          underlyingDecimals,
+          totalSupply,
+          cTokenDecimals,
+          exchangeRateCurrent,
+          totalBorrows,
+          reserveFactorMantissa,
+        } = allMetada[i][0];
 
-      const { underlyingPrice } = allUnderlying[i][0];
+        const { underlyingPrice } = allUnderlying[i][0];
 
-      const apys = calculateSupplyAndBorrowApys(
-        borrowRatePerBlock,
-        underlyingPrice,
-        underlyingDecimals,
-        totalSupply,
-        cTokenDecimals,
-        exchangeRateCurrent,
-        totalBorrows,
-        reserveFactorMantissa,
-      );
+        const apys = calculateSupplyAndBorrowApys(
+          borrowRatePerBlock,
+          underlyingPrice,
+          underlyingDecimals,
+          totalSupply,
+          cTokenDecimals,
+          exchangeRateCurrent,
+          totalBorrows,
+          reserveFactorMantissa,
+        );
 
-      lendingData.push({
-        name,
-        marketAddress: contract,
-        apys,
-      });
+        lendingData.push({
+          name,
+          marketAddress: contract,
+          apys,
+        });
+      }
+      await this.cacheManager.set('lendingData', lendingData, { ttl: 900 });
+      return lendingData;
+    } catch (error) {
+      this.logger.warn('Pulling Lending Data from cache...');
+      let lendingCache: LendingMarket[] = await this.cacheManager.get('lendingData');
+      if(!lendingCache) {
+        const generalStats = await this.findGeneralStats();
+        lendingCache = generalStats.lendingData
+      }
+
+      return lendingCache;
     }
-
-    return lendingData;
   }
 
   // Gets all the data needed for Bills
   async getAllBillsData(): Promise<TreasuryBill[]> {
+    this.logger.log(`Attempting to calculate bills data`);
     try {
       const billsData: TreasuryBill[] = [];
       const allTokens = [];
@@ -468,9 +488,19 @@ export class StatsService {
           link: 'https://apeswap.finance/treasury-bills',
         });
       }
+      await this.cacheManager.set('billsData', billsData, { ttl: 900 });
       return billsData;
     } catch (err) {
       this.logger.error(err.message);
+      this.logger.warn('Pulling Bills Data from cache...');
+      //return await this.cacheManager.get('billsData');
+      let billsCahe: TreasuryBill[] = await this.cacheManager.get('billsData');
+      if(!billsCahe) {
+        const generalStats = await this.findGeneralStats();
+        billsCahe = generalStats.bills
+      }
+
+      return billsCahe;
     }
   }
 
@@ -522,16 +552,12 @@ export class StatsService {
         lendingTvl,
         polygonTvl,
         bscTvl,
-        //{ burntAmount, totalSupply, circulatingSupply },
-        //prices,
         { circulatingSupply: gnanaCirculatingSupply },
         partnerCount,
       ] = await Promise.all([
         this.getLendingTvl(),
         this.subgraphService.getLiquidityPolygonData(),
         this.subgraphService.getVolumeData(),
-        //this.getBurnAndSupply(),
-        //this.priceService.getTokenPrices(),
         this.getGnanaSupply(),
         this.getPartnerCount(),
       ]);
@@ -608,8 +634,9 @@ export class StatsService {
 
     const lendingData = await this.getAllLendingMarketData();
     const bills = await this.getAllBillsData();
-
+    await sleep(20000);
     const poolInfos = await this.calculatePoolInfo(masterApeContract);
+    await sleep(20000);
     const [{ totalAllocPoints, rewardsPerDay }, prices] = await Promise.all([
       this.getAllocPointAndRewards(),
       this.priceService.getTokenPrices(),
@@ -627,7 +654,7 @@ export class StatsService {
     };
 
     const priceUSD = prices[bananaAddress()].usd;
-
+    await sleep(20000);
     const [tokens, { burntAmount, totalSupply, circulatingSupply }] =
       await Promise.all([this.getTokens(poolInfos), this.getBurnAndSupply()]);
 
@@ -652,7 +679,6 @@ export class StatsService {
       lendingData,
       bills,
     };
-
     for (let i = 0; i < poolInfos.length; i++) {
       if (poolInfos[i].poolToken) {
         getPoolPrices(
@@ -672,7 +698,7 @@ export class StatsService {
     poolPrices.pools.forEach((pool) => {
       poolPrices.poolsTvl += pool.stakedTvl;
     });
-
+    await sleep(20000);
     await Promise.all([this.mappingIncetivizedPools(poolPrices, prices)]);
 
     poolPrices.incentivizedPools.forEach((pool) => {
@@ -689,8 +715,10 @@ export class StatsService {
 
   async calculatePoolInfo(masterApeContract) {
     // Uses single multicall
+    this.logger.log(`Attempting to calculate pool info`);
     const farmInfo = await this.getAllFarmInfo(masterApeContract);
-    return await this.getFarmInfoV2(farmInfo);
+    await sleep(10000);
+    return await this.getFarmInfo(farmInfo);
   }
 
   async getAllocPointAndRewards() {
@@ -713,192 +741,67 @@ export class StatsService {
 
   // Gets information from every farm pid in a single multicall
   async getAllFarmInfo(masterApeContract): Promise<any> {
-    const multi = new Multicall({
-      chainId: 56,
-      provider: 'https://bsc-dataseed1.defibit.io:443',
-    });
+    try {
+      const multi = new Multicall({
+        chainId: 56,
+        provider: 'https://bsc-dataseed1.defibit.io:443',
+      });
 
-    const pidCount = parseInt(
-      await masterApeContract.methods.poolLength().call(),
-      10,
-    );
+      const pidCount = parseInt(
+        await masterApeContract.methods.poolLength().call(),
+        10,
+      );
 
-    const allCalls = [...Array(pidCount).keys()].map((x) =>
-      masterApeContract.methods.poolInfo(x),
-    );
+      const allCalls = [...Array(pidCount).keys()].map((x) =>
+        masterApeContract.methods.poolInfo(x),
+      );
 
-    const farmInfo = await multi.aggregate([...allCalls]);
+      const farmInfo = await multi.aggregate([...allCalls]);
 
-    const filteredFarmInfo = farmInfo.map((farm, index) => {
-      return {
-        lpToken: farm[0],
-        allocPoint: farm[1],
-        lastRewardBlock: farm[2],
-        index,
-      };
-    });
-
-    return filteredFarmInfo;
+      const filteredFarmInfo = farmInfo.map((farm, index) => {
+        return {
+          lpToken: farm[0],
+          allocPoint: farm[1],
+          lastRewardBlock: farm[2],
+          index,
+        };
+      });
+      await this.cacheManager.set('filteredFarmInfo', filteredFarmInfo, {
+        ttl: 900,
+      });
+      return filteredFarmInfo;
+    } catch (error) {
+      this.logger.warn('Pulling Filtered Farm Info from cache...');
+      return await this.cacheManager.get('filteredFarmInfo');
+    }
   }
 
-  async getFarmInfoV2(farms) {
+  async getFarmInfo(farms): Promise<FarmLPDto[]> {
+    const farmLPInfo = [];
     const tokenIndex = [0, 75, 112, 162, 190];
     const lpList = farms.filter((farm, index) => !tokenIndex.includes(index));
     const tokenList = farms.filter((farm, index) => tokenIndex.includes(index));
-    const callsReserve = mappingCalls('lpToken', lpList, 'getReserves');
-    const callsDecimals = mappingCalls('lpToken', lpList, 'decimals');
-    const callsToken0 = mappingCalls('lpToken', lpList, 'token0');
-    const callsToken1 = mappingCalls('lpToken', lpList, 'token1');
-    const callsTotalSupply = mappingCalls('lpToken', lpList, 'totalSupply');
-    const callsBalanceOf = mappingCalls('lpToken', lpList, 'balanceOf', [
-      masterApeContractAddress(),
-    ]);
-
-    const [
-      multiReserve,
-      multiDecimals,
-      multiToken0,
-      multiToken1,
-      multiTotalSupply,
-      multiBalanceOf,
-    ] = await Promise.all([
-      multicall(LP_ABI, callsReserve),
-      multicall(LP_ABI, callsDecimals),
-      multicall(LP_ABI, callsToken0),
-      multicall(LP_ABI, callsToken1),
-      multicall(LP_ABI, callsTotalSupply),
-      multicall(LP_ABI, callsBalanceOf),
-    ]);
-    const lpInfo = [];
-    for (let index = 0; index < lpList.length; index++) {
-      const totalSupply =
-        multiTotalSupply[index][0] / 10 ** multiDecimals[index][0];
-      const staked = multiBalanceOf[index][0] / 10 ** multiDecimals[index][0];
-
-      const q0 = multiReserve[index]._reserve0;
-      const q1 = multiReserve[index]._reserve1;
-      const poolToken = {
-        address: lpList[index].lpToken,
-        token0: multiToken0[index][0],
-        q0,
-        token1: multiToken1[index][0],
-        q1,
-        totalSupply,
-        stakingAddress: masterApeContractAddress(),
-        staked,
-        decimals: multiDecimals[index][0],
-        tokens: [multiToken0[index][0], multiToken1[index][0]],
-      };
-
-      lpInfo.push({
-        address: lpList[index].lpToken,
-        allocPoints: lpList[index].allocPoint ?? 1,
-        poolToken,
-        poolIndex: lpList[index].index,
-        lastRewardBlock: lpList[index].lastRewardBlock,
-      });
-    }
-    await this.mappingInformationToken(tokenList, lpInfo);
-
-    const sort = lpInfo.sort((a, b) => a.poolIndex - b.poolIndex);
-
-    return sort;
-  }
-
-  async mappingInformationToken(tokenList, list) {
     try {
-      const callsTokenName = mappingCalls('lpToken', tokenList, 'name');
-      const callsTokenSymbol = mappingCalls('lpToken', tokenList, 'symbol');
-      const callsTokenTotalSupply = mappingCalls(
-        'lpToken',
-        tokenList,
-        'totalSupply',
-      );
-      const callsTokenDecimals = mappingCalls('lpToken', tokenList, 'decimals');
-      const callsTokenBalanceOf = mappingCalls(
-        'lpToken',
-        tokenList,
-        'balanceOf',
-        [masterApeContractAddress()],
-      );
-      const [
-        multiTokenName,
-        multiTokenSymbol,
-        multiTokenTotalSupply,
-        multiTokenDecimals,
-        multiTokenBalanceOf,
-      ] = await Promise.all([
-        multicall(ERC20_ABI, callsTokenName),
-        multicall(ERC20_ABI, callsTokenSymbol),
-        multicall(ERC20_ABI, callsTokenTotalSupply),
-        multicall(ERC20_ABI, callsTokenDecimals),
-        multicall(ERC20_ABI, callsTokenBalanceOf),
-      ]);
-      for (let index = 0; index < tokenList.length; index++) {
-        const tokenAddress = tokenList[index].lpToken;
-        let info;
-        if (tokenAddress == '0x0000000000000000000000000000000000000000') {
-          info = {
-            address: tokenAddress,
-            name: 'Binance',
-            symbol: 'BNB',
-            totalSupply: 1e8,
-            decimals: 18,
-            staked: 0,
-            tokens: [tokenAddress],
-          };
-        }
+      this.logger.log(`Attempting to calculate information LP`);
+      await mappingInformationLP(lpList, farmLPInfo);
+      await sleep(20000);
+      this.logger.log(`Attempting to calculate information token`);
+      await mappingInformationToken(tokenList, farmLPInfo);
 
-        // HOTFIX for Rocket token (Rocket contract currently incompatible with ERC20_ABI)
-        if (tokenAddress == '0x3bA5aee47Bb7eAE40Eb3D06124a74Eb89Da8ffd2') {
-          const contract = getContract(
-            LP_ABI,
-            '0x93fa1A6357De25031311f784342c33A26Cb1C87A', // ROCKET-BNB LP pair address
-          );
-          const reserves = await contract.methods.getReserves().call();
-          const q0 = reserves._reserve0 / 10 ** 18;
-
-          info = {
-            address: tokenAddress,
-            name: 'Rocket',
-            symbol: 'ROCKET',
-            totalSupply: 1000000000,
-            decimals: 18,
-            staked: q0,
-            tokens: [tokenAddress],
-          };
-        }
-        if (!info) {
-          info = {
-            address: tokenAddress,
-            name: multiTokenName[index][0],
-            symbol: multiTokenSymbol[index][0],
-            totalSupply: multiTokenTotalSupply[index][0],
-            decimals: multiTokenDecimals[index][0],
-            staked:
-              multiTokenBalanceOf[index][0] /
-              10 ** multiTokenDecimals[index][0],
-            tokens: [tokenAddress],
-          };
-        }
-        list.push(info);
-      }
+      const sort = farmLPInfo.sort((a, b) => a.poolIndex - b.poolIndex);
+      await this.cacheManager.set('farmLPInfoList', sort, { ttl: 900 });
+      return sort;
     } catch (error) {
-      console.log(error);
+      this.logger.warn('Pulling farm LP info from cache...');
+      return await this.cacheManager.get('farmLPInfoList');
     }
   }
 
-  async getTokenInfo(tokenAddress, stakingAddress) {
+  async getTokenInfo(tokenAddress, stakingAddress): Promise<GeneralTokenDto> {
     if (tokenAddress == '0x0000000000000000000000000000000000000000') {
-      return {
-        address: tokenAddress,
-        name: 'Binance',
-        symbol: 'BNB',
-        totalSupply: 1e8,
-        decimals: 18,
-        staked: 0,
-        tokens: [tokenAddress],
-      };
+      return mappingToken(tokenAddress, 'Binance', 'BNB', 1e8, 18, 0, [
+        tokenAddress,
+      ]);
     }
 
     // HOTFIX for Rocket token (Rocket contract currently incompatible with ERC20_ABI)
@@ -910,53 +813,59 @@ export class StatsService {
       const reserves = await contract.methods.getReserves().call();
       const q0 = reserves._reserve0 / 10 ** 18;
 
-      return {
-        address: tokenAddress,
-        name: 'Rocket',
-        symbol: 'ROCKET',
-        totalSupply: 1000000000,
-        decimals: 18,
-        staked: q0,
-        tokens: [tokenAddress],
-      };
+      return mappingToken(
+        tokenAddress,
+        'Rocket',
+        'ROCKET',
+        1000000000,
+        18,
+        q0,
+        [tokenAddress],
+      );
     }
 
-    const [name, symbol, totalSupply, decimals, staked] = await multicall(
-      ERC20_ABI,
-      [
-        {
-          address: tokenAddress,
-          name: 'name',
-        },
-        {
-          address: tokenAddress,
-          name: 'symbol',
-        },
-        {
-          address: tokenAddress,
-          name: 'totalSupply',
-        },
-        {
-          address: tokenAddress,
-          name: 'decimals',
-        },
-        {
-          address: tokenAddress,
-          name: 'balanceOf',
-          params: [stakingAddress],
-        },
-      ],
-    );
-
-    return {
-      address: tokenAddress,
-      name: name[0],
-      symbol: symbol[0],
-      totalSupply: totalSupply[0],
-      decimals: decimals[0],
-      staked: staked[0] / 10 ** decimals[0],
-      tokens: [tokenAddress],
-    };
+    try {
+      const [name, symbol, totalSupply, decimals, staked] = await multicall(
+        ERC20_ABI,
+        [
+          {
+            address: tokenAddress,
+            name: 'name',
+          },
+          {
+            address: tokenAddress,
+            name: 'symbol',
+          },
+          {
+            address: tokenAddress,
+            name: 'totalSupply',
+          },
+          {
+            address: tokenAddress,
+            name: 'decimals',
+          },
+          {
+            address: tokenAddress,
+            name: 'balanceOf',
+            params: [stakingAddress],
+          },
+        ],
+      );
+      const token =  mappingToken(
+        tokenAddress,
+        name[0],
+        symbol[0],
+        totalSupply[0],
+        decimals[0],
+        staked[0] / 10 ** decimals[0],
+        [tokenAddress],
+      )
+      this.cacheManager.set(`tokenInfo-${tokenAddress}`, token, {ttl: 900})
+      return token;
+    } catch (error) {
+      this.logger.warn(`Pulling Token Info tokenInfo-${tokenAddress} from cache...`);
+      return await this.cacheManager.get(`tokenInfo-${tokenAddress}`);
+    }
   }
 
   async getBurnAndSupply(chainId = +process.env.CHAIN_ID) {
@@ -1049,9 +958,10 @@ export class StatsService {
   }
 
   async mappingIncetivizedPools(poolPrices, prices) {
+    this.logger.log(`Attempting to calculate incentivized pools`);
     const currentBlockNumber = await getCurrentBlock();
     const pools = await this.getIncentivizedPools();
-    const incentivizedPools = await this.getIncentivizedPoolInfoV2(
+    const incentivizedPools = await this.getIncentivizedPoolInfo(
       pools,
       prices,
       currentBlockNumber,
@@ -1064,291 +974,308 @@ export class StatsService {
     ); //filter null pools
   }
 
-  async getIncentivizedPoolInfoV2(pools, prices, currentBlockNumber) {
-    const poolsNormal = pools.filter((pool) => !pool.stakeTokenIsLp);
-    const poolsLP = pools.filter((pool) => pool.stakeTokenIsLp);
-    const listAddresses = mappingCalls(
-      'address',
-      poolsNormal,
-      'rewardPerBlock',
-    );
-    const listStakeTokenSymbol = mappingCalls(
-      'stakeToken',
-      poolsNormal,
-      'symbol',
-    );
-    const listStakeTokenDecimals = mappingCalls(
-      'stakeToken',
-      poolsNormal,
-      'decimals',
-    );
-    const listRewardTokenSymbol = mappingCalls(
-      'rewardToken',
-      poolsNormal,
-      'symbol',
-    );
-    const listRewardTokenDecimals = mappingCalls(
-      'rewardToken',
-      poolsNormal,
-      'decimals',
-    );
-    const listStakeTokenTotalSupply = mappingCalls(
-      'stakeToken',
-      poolsNormal,
-      'totalSupply',
-    );
-    const listStakeTokenBalanceOf = poolsNormal.map((pool) => ({
-      address: pool.stakeToken,
-      name: 'balanceOf',
-      params: [pool.address],
-    }));
-    const reduceStakeTokenSymbol = reduceList(listStakeTokenSymbol, 'address');
-    const reduceStakeTokenDecimals = reduceList(
-      listStakeTokenDecimals,
-      'address',
-    );
-    const reduceStakeTokenTotalSupply = reduceList(
-      listStakeTokenTotalSupply,
-      'address',
-    );
-    const reduceStakeTokenBalanceOf = reduceList(
-      listStakeTokenBalanceOf,
-      'address',
-    );
-    const reduceRewardTokenSymbol = reduceList(
-      listRewardTokenSymbol,
-      'address',
-    );
-    const reduceRewardTokenDecimals = reduceList(
-      listRewardTokenDecimals,
-      'address',
-    );
-    const [
-      multiName,
-      multiStakedTokenDecimals,
-      multiRewardDecimals,
-      multiRewardTokenSymbol,
-      multiTotalSupply,
-      multiStakedSupply,
-      multiAddresses,
-    ] = await Promise.all([
-      multicall(ERC20_ABI, reduceStakeTokenSymbol),
-      multicall(ERC20_ABI, reduceStakeTokenDecimals),
-      multicall(ERC20_ABI, reduceRewardTokenSymbol),
-      multicall(ERC20_ABI, reduceRewardTokenDecimals),
-      multicall(ERC20_ABI, reduceStakeTokenTotalSupply),
-      multicall(ERC20_ABI, reduceStakeTokenBalanceOf),
-      multicall(BEP20_REWARD_APE_ABI, listAddresses),
-    ]);
-    const incentivizedPools = [];
-
-    for (let index = 0; index < poolsNormal.length; index++) {
-      const pool = poolsNormal[index];
-      const active =
-        pool.startBlock <= currentBlockNumber &&
-        pool.bonusEndBlock >= currentBlockNumber;
-      let stakedTokenPrice = getParameterCaseInsensitive(
-        prices,
-        pool.stakeToken,
-      )?.usd;
-
-      // If token is not trading on DEX, assign price = 0
-      if (isNaN(stakedTokenPrice)) {
-        stakedTokenPrice = 0;
-      }
-
-      let rewardTokenPrice = getParameterCaseInsensitive(
-        prices,
-        pool.rewardToken,
-      )?.usd;
-
-      // If token is not trading on DEX, assign price = 0
-      if (isNaN(rewardTokenPrice)) {
-        rewardTokenPrice = 0;
-      }
-      const positionStakeTokenTotalSupply =
-        reduceStakeTokenTotalSupply.findIndex(
-          (x) => x.address === pool.stakeToken,
-        );
-      const positionRewardToken = reduceRewardTokenSymbol.findIndex(
-        (x) => x.address === pool.rewardToken,
+  async getIncentivizedPoolInfo(
+    pools,
+    prices,
+    currentBlockNumber,
+  ): Promise<IncentivizedPoolStats[]> {
+    try {
+      const poolsNormal = pools.filter((pool) => !pool.stakeTokenIsLp);
+      const poolsLP = pools.filter((pool) => pool.stakeTokenIsLp);
+      const listAddresses = mappingCalls(
+        'address',
+        poolsNormal,
+        'rewardPerBlock',
       );
-      let totalSupply = multiTotalSupply[positionStakeTokenTotalSupply][0];
-      let stakedSupply = multiStakedSupply[positionStakeTokenTotalSupply][0];
-      const stakedTokenDecimals =
-        multiStakedTokenDecimals[positionStakeTokenTotalSupply][0];
+      const listStakeTokenSymbol = mappingCalls(
+        'stakeToken',
+        poolsNormal,
+        'symbol',
+      );
+      const listStakeTokenDecimals = mappingCalls(
+        'stakeToken',
+        poolsNormal,
+        'decimals',
+      );
+      const listRewardTokenSymbol = mappingCalls(
+        'rewardToken',
+        poolsNormal,
+        'symbol',
+      );
+      const listRewardTokenDecimals = mappingCalls(
+        'rewardToken',
+        poolsNormal,
+        'decimals',
+      );
+      const listStakeTokenTotalSupply = mappingCalls(
+        'stakeToken',
+        poolsNormal,
+        'totalSupply',
+      );
+      const listStakeTokenBalanceOf = poolsNormal.map((pool) => ({
+        address: pool.stakeToken,
+        name: 'balanceOf',
+        params: [pool.address],
+      }));
+      const reduceStakeTokenSymbol = reduceList(
+        listStakeTokenSymbol,
+        'address',
+      );
+      const reduceStakeTokenDecimals = reduceList(
+        listStakeTokenDecimals,
+        'address',
+      );
+      const reduceStakeTokenTotalSupply = reduceList(
+        listStakeTokenTotalSupply,
+        'address',
+      );
+      const reduceStakeTokenBalanceOf = reduceList(
+        listStakeTokenBalanceOf,
+        'address',
+      );
+      const reduceRewardTokenSymbol = reduceList(
+        listRewardTokenSymbol,
+        'address',
+      );
+      const reduceRewardTokenDecimals = reduceList(
+        listRewardTokenDecimals,
+        'address',
+      );
+      const [
+        multiName,
+        multiStakedTokenDecimals,
+        multiTotalSupply,
+        multiStakedSupply,
+      ] = await Promise.all([
+        multicall(ERC20_ABI, reduceStakeTokenSymbol),
+        multicall(ERC20_ABI, reduceStakeTokenDecimals),
+        multicall(ERC20_ABI, reduceStakeTokenTotalSupply),
+        multicall(ERC20_ABI, reduceStakeTokenBalanceOf),
+      ]);
+      await sleep(15000);
+      const [multiRewardDecimals, multiRewardTokenSymbol, multiAddresses] =
+        await Promise.all([
+          multicall(ERC20_ABI, reduceRewardTokenSymbol),
+          multicall(ERC20_ABI, reduceRewardTokenDecimals),
+          multicall(BEP20_REWARD_APE_ABI, listAddresses),
+        ]);
+      const incentivizedPools = [];
 
-      const rewardTokenDecimals = multiRewardDecimals[positionRewardToken][0];
-      totalSupply = totalSupply / 10 ** stakedTokenDecimals;
-      stakedSupply = stakedSupply / 10 ** stakedTokenDecimals;
-      const rewardsPerBlock = multiAddresses[index] / 10 ** rewardTokenDecimals;
-      const tvl = totalSupply * stakedTokenPrice;
-      const stakedTvl = (stakedSupply * tvl) / totalSupply;
+      for (let index = 0; index < poolsNormal.length; index++) {
+        const pool = poolsNormal[index];
+        const active =
+          pool.startBlock <= currentBlockNumber &&
+          pool.bonusEndBlock >= currentBlockNumber;
+        let stakedTokenPrice = getParameterCaseInsensitive(
+          prices,
+          pool.stakeToken,
+        )?.usd;
 
-      let apr = 0;
-      if (active && stakedTokenPrice != 0) {
-        apr =
-          (rewardTokenPrice * ((rewardsPerBlock * 86400) / 3) * 365) /
-          stakedTvl;
+        // If token is not trading on DEX, assign price = 0
+        if (isNaN(stakedTokenPrice)) {
+          stakedTokenPrice = 0;
+        }
+
+        let rewardTokenPrice = getParameterCaseInsensitive(
+          prices,
+          pool.rewardToken,
+        )?.usd;
+
+        // If token is not trading on DEX, assign price = 0
+        if (isNaN(rewardTokenPrice)) {
+          rewardTokenPrice = 0;
+        }
+        const positionStakeTokenTotalSupply =
+          reduceStakeTokenTotalSupply.findIndex(
+            (x) => x.address === pool.stakeToken,
+          );
+        const positionRewardToken = reduceRewardTokenSymbol.findIndex(
+          (x) => x.address === pool.rewardToken,
+        );
+        let totalSupply = multiTotalSupply[positionStakeTokenTotalSupply][0];
+        let stakedSupply = multiStakedSupply[positionStakeTokenTotalSupply][0];
+        const stakedTokenDecimals =
+          multiStakedTokenDecimals[positionStakeTokenTotalSupply][0];
+
+        const rewardTokenDecimals = multiRewardDecimals[positionRewardToken][0];
+        totalSupply = totalSupply / 10 ** stakedTokenDecimals;
+        stakedSupply = stakedSupply / 10 ** stakedTokenDecimals;
+        const rewardsPerBlock =
+          multiAddresses[index] / 10 ** rewardTokenDecimals;
+        const tvl = totalSupply * stakedTokenPrice;
+        const stakedTvl = (stakedSupply * tvl) / totalSupply;
+
+        let apr = 0;
+        if (active && stakedTokenPrice != 0) {
+          apr =
+            (rewardTokenPrice * ((rewardsPerBlock * 86400) / 3) * 365) /
+            stakedTvl;
+        }
+
+        incentivizedPools.push({
+          id: pool.sousId,
+          name: multiName[positionStakeTokenTotalSupply][0],
+          address: pool.address,
+          active,
+          blocksRemaining: active ? pool.bonusEndBlock - currentBlockNumber : 0,
+          rewardTokenAddress: pool.rewardToken,
+          stakedTokenAddress: pool.stakeToken,
+          totalSupply,
+          stakedSupply,
+          rewardDecimals: rewardTokenDecimals,
+          stakedTokenDecimals: stakedTokenDecimals,
+          tvl,
+          stakedTvl,
+          apr,
+          rewardTokenPrice,
+          rewardTokenSymbol: multiRewardTokenSymbol[positionRewardToken][0],
+          price: stakedTokenPrice,
+          abi: pool.abi,
+        });
       }
+      for (let index = 0; index < poolsLP.length; index++) {
+        const pool = poolsLP[index];
+        const active =
+          pool.startBlock <= currentBlockNumber &&
+          pool.bonusEndBlock >= currentBlockNumber;
+        const [reserves, stakedTokenDecimals, t0Address, t1Address] =
+          await multicall(LP_ABI, [
+            {
+              address: pool.stakeToken,
+              name: 'getReserves',
+            },
+            {
+              address: pool.stakeToken,
+              name: 'decimals',
+            },
+            {
+              address: pool.stakeToken,
+              name: 'token0',
+            },
+            {
+              address: pool.stakeToken,
+              name: 'token1',
+            },
+          ]);
 
-      incentivizedPools.push({
-        id: pool.sousId,
-        name: multiName[positionStakeTokenTotalSupply][0],
-        address: pool.address,
-        active,
-        blocksRemaining: active ? pool.bonusEndBlock - currentBlockNumber : 0,
-        rewardTokenAddress: pool.rewardToken,
-        stakedTokenAddress: pool.stakeToken,
-        totalSupply,
-        stakedSupply,
-        rewardDecimals: rewardTokenDecimals,
-        stakedTokenDecimals: stakedTokenDecimals,
-        tvl,
-        stakedTvl,
-        apr,
-        rewardTokenPrice,
-        rewardTokenSymbol: multiRewardTokenSymbol[positionRewardToken][0],
-        price: stakedTokenPrice,
-        abi: pool.abi,
-      });
-    }
-    for (let index = 0; index < poolsLP.length; index++) {
-      const pool = poolsLP[index];
-      const active =
-        pool.startBlock <= currentBlockNumber &&
-        pool.bonusEndBlock >= currentBlockNumber;
-      const [reserves, stakedTokenDecimals, t0Address, t1Address] =
-        await multicall(LP_ABI, [
+        const [
+          token0decimals,
+          token1decimals,
+          rewardTokenSymbol,
+          t0Symbol,
+          t1Symbol,
+          rewardDecimals,
+        ] = await multicall(ERC20_ABI, [
           {
-            address: pool.stakeToken,
-            name: 'getReserves',
-          },
-          {
-            address: pool.stakeToken,
+            address: t0Address[0],
             name: 'decimals',
           },
           {
-            address: pool.stakeToken,
-            name: 'token0',
+            address: t1Address[0],
+            name: 'decimals',
           },
           {
-            address: pool.stakeToken,
-            name: 'token1',
+            address: pool.rewardToken,
+            name: 'symbol',
+          },
+          {
+            address: t0Address[0],
+            name: 'symbol',
+          },
+          {
+            address: t1Address[0],
+            name: 'symbol',
+          },
+          {
+            address: pool.rewardToken,
+            name: 'decimals',
           },
         ]);
 
-      const [
-        token0decimals,
-        token1decimals,
-        rewardTokenSymbol,
-        t0Symbol,
-        t1Symbol,
-        rewardDecimals,
-      ] = await multicall(ERC20_ABI, [
-        {
-          address: t0Address[0],
-          name: 'decimals',
-        },
-        {
-          address: t1Address[0],
-          name: 'decimals',
-        },
-        {
-          address: pool.rewardToken,
-          name: 'symbol',
-        },
-        {
-          address: t0Address[0],
-          name: 'symbol',
-        },
-        {
-          address: t1Address[0],
-          name: 'symbol',
-        },
-        {
-          address: pool.rewardToken,
-          name: 'decimals',
-        },
-      ]);
+        let [totalSupply, stakedSupply] = await multicall(LP_ABI, [
+          {
+            address: pool.stakeToken,
+            name: 'totalSupply',
+          },
+          {
+            address: pool.stakeToken,
+            name: 'balanceOf',
+            params: [pool.address],
+          },
+        ]);
 
-      let [totalSupply, stakedSupply] = await multicall(LP_ABI, [
-        {
-          address: pool.stakeToken,
-          name: 'totalSupply',
-        },
-        {
-          address: pool.stakeToken,
-          name: 'balanceOf',
-          params: [pool.address],
-        },
-      ]);
+        totalSupply = totalSupply / 10 ** stakedTokenDecimals[0];
+        stakedSupply = stakedSupply / 10 ** stakedTokenDecimals[0];
+        const poolContract = getContract(pool.abi, pool.address);
+        const rewardsPerBlock =
+          (await poolContract.methods.rewardPerBlock().call()) /
+          10 ** rewardDecimals;
 
-      totalSupply = totalSupply / 10 ** stakedTokenDecimals[0];
-      stakedSupply = stakedSupply / 10 ** stakedTokenDecimals[0];
-      const poolContract = getContract(pool.abi, pool.address);
-      const rewardsPerBlock =
-        (await poolContract.methods.rewardPerBlock().call()) /
-        10 ** rewardDecimals;
+        const q0 = reserves._reserve0 / 10 ** token0decimals[0];
+        const q1 = reserves._reserve1 / 10 ** token1decimals[0];
 
-      const q0 = reserves._reserve0 / 10 ** token0decimals[0];
-      const q1 = reserves._reserve1 / 10 ** token1decimals[0];
+        let p0 = getParameterCaseInsensitive(prices, t0Address[0])?.usd;
+        let p1 = getParameterCaseInsensitive(prices, t1Address[0])?.usd;
 
-      let p0 = getParameterCaseInsensitive(prices, t0Address[0])?.usd;
-      let p1 = getParameterCaseInsensitive(prices, t1Address[0])?.usd;
+        if (p0 == null && p1 == null) {
+          return undefined;
+        }
+        if (p0 == null) {
+          p0 = (q1 * p1) / q0;
+          prices[t0Address[0]] = { usd: p0 };
+        }
+        if (p1 == null) {
+          p1 = (q0 * p0) / q1;
+          prices[t1Address[0]] = { usd: p1 };
+        }
 
-      if (p0 == null && p1 == null) {
-        return undefined;
+        const tvl = q0 * p0 + q1 * p1;
+        const stakedTvl = (stakedSupply * tvl) / totalSupply;
+
+        const rewardTokenPrice = getParameterCaseInsensitive(
+          prices,
+          pool.rewardToken,
+        )?.usd;
+        const apr = active
+          ? (rewardTokenPrice * ((rewardsPerBlock * 86400) / 3) * 365) /
+            stakedTvl
+          : 0;
+
+        incentivizedPools.push({
+          id: pool.sousId,
+          name: createLpPairName(t0Symbol[0], t1Symbol[0]),
+          address: pool.address,
+          active,
+          blocksRemaining: active ? pool.bonusEndBlock - currentBlockNumber : 0,
+          stakedTokenAddress: pool.stakeToken,
+          t0Address: t0Address[0],
+          t0Symbol: t0Symbol[0],
+          p0,
+          q0,
+          t1Address: t1Address[0],
+          t1Symbol: t1Symbol[0],
+          p1,
+          q1,
+          totalSupply,
+          stakedSupply,
+          rewardDecimals,
+          stakedTokenDecimals: stakedTokenDecimals[0],
+          tvl,
+          stakedTvl,
+          apr,
+          rewardTokenPrice,
+          rewardTokenSymbol: rewardTokenSymbol[0],
+          price: tvl / totalSupply,
+          abi: pool.abi,
+        });
       }
-      if (p0 == null) {
-        p0 = (q1 * p1) / q0;
-        prices[t0Address[0]] = { usd: p0 };
-      }
-      if (p1 == null) {
-        p1 = (q0 * p0) / q1;
-        prices[t1Address[0]] = { usd: p1 };
-      }
-
-      const tvl = q0 * p0 + q1 * p1;
-      const stakedTvl = (stakedSupply * tvl) / totalSupply;
-
-      const rewardTokenPrice = getParameterCaseInsensitive(
-        prices,
-        pool.rewardToken,
-      )?.usd;
-      const apr = active
-        ? (rewardTokenPrice * ((rewardsPerBlock * 86400) / 3) * 365) / stakedTvl
-        : 0;
-
-      incentivizedPools.push({
-        id: pool.sousId,
-        name: createLpPairName(t0Symbol[0], t1Symbol[0]),
-        address: pool.address,
-        active,
-        blocksRemaining: active ? pool.bonusEndBlock - currentBlockNumber : 0,
-        stakedTokenAddress: pool.stakeToken,
-        t0Address: t0Address[0],
-        t0Symbol: t0Symbol[0],
-        p0,
-        q0,
-        t1Address: t1Address[0],
-        t1Symbol: t1Symbol[0],
-        p1,
-        q1,
-        totalSupply,
-        stakedSupply,
-        rewardDecimals,
-        stakedTokenDecimals: stakedTokenDecimals[0],
-        tvl,
-        stakedTvl,
-        apr,
-        rewardTokenPrice,
-        rewardTokenSymbol: rewardTokenSymbol[0],
-        price: tvl / totalSupply,
-        abi: pool.abi,
-      });
+      return incentivizedPools;
+    } catch (e) {
+      this.logger.warn('Pulling incentivized pools from database...');
+      const generalStats = await this.findGeneralStats();
+      if (!generalStats) return [];
+      return generalStats.incentivizedPools;
     }
-    return incentivizedPools;
   }
 
   async getIncentivizedPools() {

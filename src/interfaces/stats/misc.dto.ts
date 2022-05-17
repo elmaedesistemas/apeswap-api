@@ -33,3 +33,19 @@ export class TokenVolume {
   reserveUSD: number;
   createdAtBlockNumber: number;
 }
+
+export class DataMulticallDto {
+  address: string;
+  name: string;
+  params?: any[];
+}
+
+export class GeneralTokenDto {
+  address: string;
+  name: string;
+  symbol: string;
+  totalSupply: number;
+  decimals: number;
+  staked: number;
+  tokens: any[];
+}

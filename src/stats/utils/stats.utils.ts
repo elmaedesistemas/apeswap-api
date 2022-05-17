@@ -8,9 +8,16 @@ import {
 import { MASTER_APE_ABI } from './abi/masterApeAbi';
 import configuration from 'src/config/configuration';
 import { getBalanceNumber } from 'src/utils/math';
-import { multicallNetwork } from 'src/utils/lib/multicall';
+import { multicall, multicallNetwork } from 'src/utils/lib/multicall';
 import { MINI_COMPLEX_REWARDER_ABI } from './abi/miniComplexRewarderAbi';
 import { OLA_LENS_ABI } from './abi/OlaCompoundLens';
+import {
+  DataMulticallDto,
+  GeneralTokenDto,
+} from 'src/interfaces/stats/misc.dto';
+import { PoolTokenDto } from 'src/interfaces/stats/generalStats.dto';
+import { LP_ABI } from './abi/lpAbi';
+import { ERC20_ABI } from './abi/erc20Abi';
 
 export const SECONDS_PER_YEAR = new BigNumber(31536000);
 // ADDRESS GETTERS
@@ -497,7 +504,7 @@ export const mappingCalls = (
   array: [any],
   option: string,
   params = undefined,
-) => {
+): DataMulticallDto[] => {
   return array.map((a) => ({
     address: a[id],
     name: option,
@@ -505,9 +512,159 @@ export const mappingCalls = (
   }));
 };
 
-export const reduceList = (array: any, id: string) => {
+export const reduceList = (array: any, id: string): any[] => {
   return array.filter(
     (thing, index, self) =>
       index === self.findIndex((t) => t[id] === thing[id]),
   );
+};
+
+export async function mappingInformationLP(lpList: any, listLpInfo: any) {
+  const callsReserve = mappingCalls('lpToken', lpList, 'getReserves');
+  const callsDecimals = mappingCalls('lpToken', lpList, 'decimals');
+  const callsToken0 = mappingCalls('lpToken', lpList, 'token0');
+  const callsToken1 = mappingCalls('lpToken', lpList, 'token1');
+  const callsTotalSupply = mappingCalls('lpToken', lpList, 'totalSupply');
+  const callsBalanceOf = mappingCalls('lpToken', lpList, 'balanceOf', [
+    masterApeContractAddress(),
+  ]);
+
+  const [
+    multiReserve,
+    multiDecimals,
+    multiToken0,
+    multiToken1,
+    multiTotalSupply,
+    multiBalanceOf,
+  ] = await Promise.all([
+    multicall(LP_ABI, callsReserve),
+    multicall(LP_ABI, callsDecimals),
+    multicall(LP_ABI, callsToken0),
+    multicall(LP_ABI, callsToken1),
+    multicall(LP_ABI, callsTotalSupply),
+    multicall(LP_ABI, callsBalanceOf),
+  ]);
+  for (let index = 0; index < lpList.length; index++) {
+    const totalSupply =
+      multiTotalSupply[index][0] / 10 ** multiDecimals[index][0];
+    const staked = multiBalanceOf[index][0] / 10 ** multiDecimals[index][0];
+
+    const q0 = multiReserve[index]._reserve0;
+    const q1 = multiReserve[index]._reserve1;
+    const poolToken: PoolTokenDto = {
+      address: lpList[index].lpToken,
+      token0: multiToken0[index][0],
+      q0,
+      token1: multiToken1[index][0],
+      q1,
+      totalSupply,
+      stakingAddress: masterApeContractAddress(),
+      staked,
+      decimals: multiDecimals[index][0],
+      tokens: [multiToken0[index][0], multiToken1[index][0]],
+    };
+
+    listLpInfo.push({
+      address: lpList[index].lpToken,
+      allocPoints: lpList[index].allocPoint ?? 1,
+      poolToken,
+      poolIndex: lpList[index].index,
+      lastRewardBlock: lpList[index].lastRewardBlock,
+    });
+  }
+}
+
+export async function mappingInformationToken(tokenList: any, listLpInfo: any) {
+  try {
+    const callsTokenName = mappingCalls('lpToken', tokenList, 'name');
+    const callsTokenSymbol = mappingCalls('lpToken', tokenList, 'symbol');
+    const callsTokenTotalSupply = mappingCalls(
+      'lpToken',
+      tokenList,
+      'totalSupply',
+    );
+    const callsTokenDecimals = mappingCalls('lpToken', tokenList, 'decimals');
+    const callsTokenBalanceOf = mappingCalls(
+      'lpToken',
+      tokenList,
+      'balanceOf',
+      [masterApeContractAddress()],
+    );
+    const [
+      multiTokenName,
+      multiTokenSymbol,
+      multiTokenTotalSupply,
+      multiTokenDecimals,
+      multiTokenBalanceOf,
+    ] = await Promise.all([
+      multicall(ERC20_ABI, callsTokenName),
+      multicall(ERC20_ABI, callsTokenSymbol),
+      multicall(ERC20_ABI, callsTokenTotalSupply),
+      multicall(ERC20_ABI, callsTokenDecimals),
+      multicall(ERC20_ABI, callsTokenBalanceOf),
+    ]);
+    for (let index = 0; index < tokenList.length; index++) {
+      const tokenAddress = tokenList[index].lpToken;
+      let info;
+      if (tokenAddress == '0x0000000000000000000000000000000000000000') {
+        info = mappingToken(tokenAddress, 'Binance', 'BNB', 1e8, 18, 0, [
+          tokenAddress,
+        ]);
+      }
+
+      // HOTFIX for Rocket token (Rocket contract currently incompatible with ERC20_ABI)
+      if (tokenAddress == '0x3bA5aee47Bb7eAE40Eb3D06124a74Eb89Da8ffd2') {
+        const contract = getContract(
+          LP_ABI,
+          '0x93fa1A6357De25031311f784342c33A26Cb1C87A', // ROCKET-BNB LP pair address
+        );
+        const reserves = await contract.methods.getReserves().call();
+        const q0 = reserves._reserve0 / 10 ** 18;
+
+        info = mappingToken(
+          tokenAddress,
+          'Rocket',
+          'ROCKET',
+          1000000000,
+          18,
+          q0,
+          [tokenAddress],
+        );
+      }
+      if (!info) {
+        info = mappingToken(
+          tokenAddress,
+          multiTokenName[index][0],
+          multiTokenSymbol[index][0],
+          multiTokenTotalSupply[index][0],
+          multiTokenDecimals[index][0],
+          multiTokenBalanceOf[index][0] / 10 ** multiTokenDecimals[index][0],
+          [tokenAddress],
+        );
+      }
+      listLpInfo.push(info);
+    }
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+export const mappingToken = (
+  address: string,
+  name: string,
+  symbol: string,
+  totalSupply: number,
+  decimals: number,
+  staked: number,
+  tokens: any[],
+): GeneralTokenDto => {
+  return {
+    address,
+    name,
+    symbol,
+    totalSupply,
+    decimals,
+    staked,
+    tokens,
+  };
 };
