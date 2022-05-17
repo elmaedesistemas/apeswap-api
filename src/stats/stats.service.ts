@@ -394,17 +394,11 @@ export class StatsService {
           apys,
         });
       }
-      await this.cacheManager.set('lendingData', lendingData, { ttl: 900 });
       return lendingData;
     } catch (error) {
-      this.logger.warn('Pulling Lending Data from cache...');
-      let lendingCache: LendingMarket[] = await this.cacheManager.get('lendingData');
-      if(!lendingCache) {
-        const generalStats = await this.findGeneralStats();
-        lendingCache = generalStats.lendingData
-      }
-
-      return lendingCache;
+      this.logger.warn('Pulling Lending Data from database...');
+      const generalStats = await this.findGeneralStats();
+      return generalStats.lendingData
     }
   }
 
@@ -488,19 +482,12 @@ export class StatsService {
           link: 'https://apeswap.finance/treasury-bills',
         });
       }
-      await this.cacheManager.set('billsData', billsData, { ttl: 900 });
       return billsData;
     } catch (err) {
       this.logger.error(err.message);
-      this.logger.warn('Pulling Bills Data from cache...');
-      //return await this.cacheManager.get('billsData');
-      let billsCahe: TreasuryBill[] = await this.cacheManager.get('billsData');
-      if(!billsCahe) {
-        const generalStats = await this.findGeneralStats();
-        billsCahe = generalStats.bills
-      }
-
-      return billsCahe;
+      this.logger.warn('Pulling Bills Data from database...');
+      const generalStats = await this.findGeneralStats();
+      return generalStats.bills;
     }
   }
 
