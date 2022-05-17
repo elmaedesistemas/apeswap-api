@@ -642,7 +642,13 @@ export async function mappingInformationToken(tokenList: any, listLpInfo: any) {
           [tokenAddress],
         );
       }
-      listLpInfo.push(info);
+      listLpInfo.push({
+        address: tokenAddress,
+        allocPoints: tokenList[index].allocPoint ?? 1,
+        poolToken: info,
+        poolIndex: tokenList[index].index,
+        lastRewardBlock: tokenList[index].lastRewardBlock,
+      });
     }
   } catch (error) {
     console.log(error);
