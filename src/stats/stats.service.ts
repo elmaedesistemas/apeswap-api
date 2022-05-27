@@ -309,6 +309,8 @@ export class StatsService {
         } else {
           apy = 0;
         }
+        const supplyDistributionApyPercent = marketData.apys.supplyDistributionApyPercent ?? 0;
+        const borrowDistributionApyPercent = marketData.apys.borrowDistributionApyPercent ?? 0;
 
         lendingDetails.push({
           marketName: type + ' ' + name,
@@ -316,6 +318,8 @@ export class StatsService {
           apy,
           token: { name, address: tokenAddress },
           link: 'https://lending.apeswap.finance',
+          supplyDistributionApyPercent,
+          borrowDistributionApyPercent
         });
       });
 
@@ -338,6 +342,7 @@ export class StatsService {
   }
 
   async getAllLendingMarketData(): Promise<LendingMarket[]> {
+    const { bananaPrice } = await this.findGeneralStats();
     const lendingData: LendingMarket[] = [];
     const allLendingMarkets = lendingMarkets();
     const olaCompoundLensContract = this.configService.getData<string>(
@@ -367,8 +372,9 @@ export class StatsService {
         exchangeRateCurrent,
         totalBorrows,
         reserveFactorMantissa,
+        incentiveSupplySpeed,
+        incentiveBorrowSpeed
       } = allMetada[i][0];
-
       const { underlyingPrice } = allUnderlying[i][0];
 
       const apys = calculateSupplyAndBorrowApys(
@@ -380,8 +386,11 @@ export class StatsService {
         exchangeRateCurrent,
         totalBorrows,
         reserveFactorMantissa,
+        incentiveSupplySpeed,
+        incentiveBorrowSpeed,
+        bananaPrice
       );
-
+      
       lendingData.push({
         name,
         marketAddress: contract,
