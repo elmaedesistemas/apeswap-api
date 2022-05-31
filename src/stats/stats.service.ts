@@ -300,17 +300,18 @@ export class StatsService {
           ({ marketAddress }) =>
             marketContractAddress.toUpperCase() == marketAddress.toUpperCase(),
         );
-
+        
+        const supplyDistributionApyPercent = marketData.apys.supplyDistributionApyPercent ?? 0;
+        const borrowDistributionApyPercent = marketData.apys.borrowDistributionApyPercent ?? 0;
         // TODO: Include distribution APYs
         if (type.toUpperCase() === 'SUPPLY') {
-          apy = marketData.apys.supplyApyPercent;
+          apy = marketData.apys.supplyApyPercent + supplyDistributionApyPercent;
         } else if (type.toUpperCase() === 'BORROW') {
-          apy = marketData.apys.borrowApyPercent;
+          apy = marketData.apys.borrowApyPercent + borrowDistributionApyPercent;
         } else {
           apy = 0;
         }
-        const supplyDistributionApyPercent = marketData.apys.supplyDistributionApyPercent ?? 0;
-        const borrowDistributionApyPercent = marketData.apys.borrowDistributionApyPercent ?? 0;
+        
 
         lendingDetails.push({
           marketName: type + ' ' + name,
