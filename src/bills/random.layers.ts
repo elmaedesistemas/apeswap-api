@@ -352,6 +352,9 @@ export function generateAttributes(billData: BillData) {
   // Delete dollarValue as it can change over time, messing with the deterministic intent of this generation
   const copy = { ...billData };
   delete copy.dollarValue;
+  delete copy.bananaPrice;
+  delete copy.createdAddressOwner;
+  delete copy.createdAt;
   for (const key in layers) {
     attributes.push({
       trait_type: key,
