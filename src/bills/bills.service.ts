@@ -471,7 +471,6 @@ export class BillsService {
             },
           });
         });
-        this.logger.log(`Finish mapping`);
       } else {
         isFinishedUpdate = true;
       }
