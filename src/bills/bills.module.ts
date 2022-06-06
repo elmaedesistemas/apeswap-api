@@ -33,6 +33,6 @@ import {
   ],
   controllers: [BillsController],
   providers: [BillsService, BillsImagesService, BitqueryService],
-  exports: [BitqueryService]
+  exports: [BitqueryService],
 })
 export class BillsModule {}

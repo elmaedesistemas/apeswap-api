@@ -32,7 +32,7 @@ export class BillsController {
     this.logger.debug('Called GET /bill/summary');
     return await this.billsService.getBillSummary();
   }
-  
+
   @ApiExcludeEndpoint()
   @Post('/loading/price')
   async loadingBananaPrice() {

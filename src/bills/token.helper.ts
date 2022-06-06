@@ -10,35 +10,29 @@ export async function getLpInfo(
   apePriceGetterAddress,
 ) {
   try {
-    const [
-      reserves,
-      decimals,
-      token0,
-      token1,
-      supply,
-      balanceOf,
-    ] = await multicall(LP_ABI, [
-      {
-        address: tokenAddress,
-        name: 'getReserves',
-      },
-      {
-        address: tokenAddress,
-        name: 'decimals',
-      },
-      {
-        address: tokenAddress,
-        name: 'token0',
-      },
-      {
-        address: tokenAddress,
-        name: 'token1',
-      },
-      {
-        address: tokenAddress,
-        name: 'totalSupply',
-      },
-    ]);
+    const [reserves, decimals, token0, token1, supply, balanceOf] =
+      await multicall(LP_ABI, [
+        {
+          address: tokenAddress,
+          name: 'getReserves',
+        },
+        {
+          address: tokenAddress,
+          name: 'decimals',
+        },
+        {
+          address: tokenAddress,
+          name: 'token0',
+        },
+        {
+          address: tokenAddress,
+          name: 'token1',
+        },
+        {
+          address: tokenAddress,
+          name: 'totalSupply',
+        },
+      ]);
 
     const [
       token0Name,

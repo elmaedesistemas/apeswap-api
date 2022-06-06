@@ -12,7 +12,12 @@ export function calculateSupplyAndBorrowApys(
   incentiveSupplySpeed,
   incentiveBorrowSpeed,
   bananaPrice,
-): { borrowApyPercent: number; supplyApyPercent: number, supplyDistributionApyPercent: number, borrowDistributionApyPercent: number } {
+): {
+  borrowApyPercent: number;
+  supplyApyPercent: number;
+  supplyDistributionApyPercent: number;
+  borrowDistributionApyPercent: number;
+} {
   // Preparations For borrow APY calculations
   const borrowRateInUnits = parseFloat(
     // Note : 'borrowRatePerBlock' is actually 'borrowRatePerSecond'
@@ -51,7 +56,7 @@ export function calculateSupplyAndBorrowApys(
   );
   const totalSuppliedInUnits = cTokensInCirculation * exchangeRateInUnits;
   const totalSupplyBalanceUsd = totalSuppliedInUnits * underlyingUsdPrice;
-  
+
   const totalBorrowedInUnits = parseFloat(
     ethers.utils.formatUnits(totalBorrows, underlyingDecimals),
   );
@@ -67,22 +72,24 @@ export function calculateSupplyAndBorrowApys(
 
   const supplyApyPercent =
     marketYearlySupplySideInterestUsdWithCompounding / totalSupplyBalanceUsd;
-  
+
   const BlockPerYear = 20 * 60 * 24 * 365;
   const totalBorrowBalanceUsd = totalBorrowedInUnits * underlyingUsdPrice;
 
   const incentiveSupplyPerYear = incentiveSupplySpeedUnits * BlockPerYear;
   const incentiveSupplyPerYearUsd = incentiveSupplyPerYear * bananaPrice;
-  const supplyDistributionApyPercent = incentiveSupplyPerYearUsd * 100 / totalSupplyBalanceUsd;
-  
+  const supplyDistributionApyPercent =
+    (incentiveSupplyPerYearUsd * 100) / totalSupplyBalanceUsd;
+
   const incentiveBorrowPerYear = incentiveBorrowSpeedUnits * BlockPerYear;
   const incentiveBorrowPerYearUsd = incentiveBorrowPerYear * bananaPrice;
-  const borrowDistributionApyPercent = incentiveBorrowPerYearUsd * 100 / totalBorrowBalanceUsd;
-  
+  const borrowDistributionApyPercent =
+    (incentiveBorrowPerYearUsd * 100) / totalBorrowBalanceUsd;
+
   return {
     borrowApyPercent,
     supplyApyPercent,
     supplyDistributionApyPercent,
-    borrowDistributionApyPercent
+    borrowDistributionApyPercent,
   };
 }

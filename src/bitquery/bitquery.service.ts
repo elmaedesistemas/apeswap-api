@@ -195,14 +195,8 @@ export class BitqueryService {
     const quotes = getQuoteCurrencies(network);
     for (let index = 0; index < Object.keys(quotes).length; index++) {
       const element = Object.values(quotes)[index];
-      const {
-        transfers: trans,
-        dexTrades: dex,
-      } = await this.getQueryTokenInformation(
-        network,
-        address,
-        element.address,
-      );
+      const { transfers: trans, dexTrades: dex } =
+        await this.getQueryTokenInformation(network, address, element.address);
       if (dex && dex.length > 0) {
         const now = new Date().getTime();
         const time = dex[0].block.timestamp.unixtime;
@@ -267,8 +261,9 @@ export class BitqueryService {
     const circulatingSupply = attributes.find(
       (i) => i.name === 'bananaReserves',
     )?.value;
-    const reserve = attributes.find((i) => i.name === 'goldenBananaReserves')
-      ?.value;
+    const reserve = attributes.find(
+      (i) => i.name === 'goldenBananaReserves',
+    )?.value;
     const supply = reserve + circulatingSupply;
 
     return { circulatingSupply, reserve, supply };
@@ -306,9 +301,10 @@ export class BitqueryService {
 
   async getPriceByBlock(blocks = []) {
     try {
-      
-      const {data: { ethereum }} = await this.queryBitquery(queryPriceByBlock(blocks));
-  
+      const {
+        data: { ethereum },
+      } = await this.queryBitquery(queryPriceByBlock(blocks));
+
       return ethereum;
     } catch (error) {
       return [];
@@ -321,10 +317,7 @@ export class BitqueryService {
         data: {
           ethereum: { transactions },
         },
-      } = await this.queryBitquery(
-        queryTransactionInfoByHash(),
-        { hashs },
-      );
+      } = await this.queryBitquery(queryTransactionInfoByHash(), { hashs });
       return transactions;
     } catch (error) {
       return [];

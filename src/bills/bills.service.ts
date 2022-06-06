@@ -318,14 +318,16 @@ export class BillsService {
   }
 
   async getBillSummary(): Promise<BillSummaryDto[]> {
-    let pendingBillMetadata = await this.billMetadataModel
+    const pendingBillMetadata = await this.billMetadataModel
       .find({ 'data.bananaPrice': { $exists: false } })
       .sort({ tokenId: 1 });
     if (pendingBillMetadata.length > 0) {
       this.logger.log('Update latest records');
       await this.loadingBananaPriceAndUpdateBill();
     }
-    let billMetadata = await this.billMetadataModel.find().sort({ tokenId: 1 });
+    const billMetadata = await this.billMetadataModel
+      .find()
+      .sort({ tokenId: 1 });
     const billSummary: BillSummaryDto[] = billMetadata.map((bill) => ({
       billNftId: bill.data.billNftId,
       bananaPrice: bill.data.bananaPrice,
@@ -344,9 +346,9 @@ export class BillsService {
 
   async loadingBananaPriceAndUpdateBill() {
     let isFinishedUpdate = false;
-    let totalPerBash = 50;
+    const totalPerBash = 50;
     while (!isFinishedUpdate) {
-      let billMetadata = await this.billMetadataModel
+      const billMetadata = await this.billMetadataModel
         .find({ 'data.bananaPrice': { $exists: false } })
         .sort({ tokenId: 1 })
         .limit(totalPerBash);
@@ -365,14 +367,14 @@ export class BillsService {
             end = skip + skipCount;
           }
           const sliced = txHashList.slice(skip, end);
-          if(sliced.length == 0) {
+          if (sliced.length == 0) {
             allFound = true;
             break;
           }
           const result = await this.bitqueryService.getTransactionInfoByHash(
             sliced,
           );
-          if(result.length == 0) {
+          if (result.length == 0) {
             allFound = true;
             break;
           }
@@ -389,6 +391,10 @@ export class BillsService {
         this.logger.log(
           `Finish get Transactions ${fetchedTransactions.length}`,
         );
+        if (fetchedTransactions.length === 0) {
+          isFinishedUpdate = true;
+          break;
+        }
         allFound = false;
         skip = 0;
         skipCount = 7; //Not greater than 7 because the query would be very large and it sends a bitquery error
@@ -402,7 +408,7 @@ export class BillsService {
             end = skip + skipCount;
           }
           const sliced = fetchedTransactions.slice(skip, end);
-          if(sliced.length == 0) {
+          if (sliced.length == 0) {
             allFound = true;
             break;
           }

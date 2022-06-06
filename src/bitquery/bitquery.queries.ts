@@ -250,13 +250,12 @@ export function queryLPVolume(
   `;
 }
 
-
 export const queryPriceByBlock = (blocks) => {
   let query = `
   query prices {
     ethereum(network: bsc) {`;
 
-  blocks.map(({block: {height}}) => {
+  blocks.map(({ block: { height } }) => {
     const lower = height - 10;
     const upper = height + 10;
     query += `during_${height}: dexTrades(

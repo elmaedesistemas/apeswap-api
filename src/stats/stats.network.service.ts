@@ -39,9 +39,8 @@ import { SubgraphService } from './subgraph.service';
 @Injectable()
 export class StatsNetworkService {
   private readonly logger = new Logger(StatsNetworkService.name);
-  private readonly DUAL_FARMS_LIST_URL = this.configService.getData<string>(
-    'dualFarmsListUrl',
-  );
+  private readonly DUAL_FARMS_LIST_URL =
+    this.configService.getData<string>('dualFarmsListUrl');
   private readonly STRAPI_URL = process.env.APESWAP_STRAPI_URL;
 
   constructor(
@@ -129,13 +128,11 @@ export class StatsNetworkService {
         chainId,
       );
 
-      const [
-        prices,
-        { burntAmount, totalSupply, circulatingSupply },
-      ] = await Promise.all([
-        this.priceService.getTokenPricesv2(chainId),
-        this.statsService.getBurnAndSupply(chainId),
-      ]);
+      const [prices, { burntAmount, totalSupply, circulatingSupply }] =
+        await Promise.all([
+          this.priceService.getTokenPricesv2(chainId),
+          this.statsService.getBurnAndSupply(chainId),
+        ]);
       const priceUSD =
         prices[
           this.configService.getData<string>(`${chainId}.contracts.banana`)
@@ -157,10 +154,10 @@ export class StatsNetworkService {
 
       switch (chainId) {
         case this.configService.getData<number>('networksId.BSC'):
-
-          generalStats.lendingData = await this.statsService.getAllLendingMarketData();
+          generalStats.lendingData =
+            await this.statsService.getAllLendingMarketData();
           generalStats.bills = await this.statsService.getAllBillsData();
-          
+
           const poolInfos = await this.statsService.calculatePoolInfo(
             masterApeContract,
           );
@@ -266,12 +263,8 @@ export class StatsNetworkService {
     );
     const data: FarmStatsDto[] = await Promise.all(
       response.map(async (dualFarmConfig) => {
-        const {
-          quoteToken,
-          token1,
-          miniChefRewarderToken,
-          rewarderToken,
-        } = getTokensPrices(dualFarmConfig, tokenPrices);
+        const { quoteToken, token1, miniChefRewarderToken, rewarderToken } =
+          getTokensPrices(dualFarmConfig, tokenPrices);
 
         const [
           {

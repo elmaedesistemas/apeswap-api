@@ -228,23 +228,18 @@ export class SubgraphService {
   async getBulkPairData(pairList, chainId) {
     const { price } = await this.getMainNetworkPrice(chainId);
     const { oneDay, twoDay, oneWeek } = getTimestampsForChanges();
-    const [
-      { number: b1 },
-      { number: b2 },
-      { number: bWeek },
-    ] = await this.getBlocksFromTimestamps([oneDay, twoDay, oneWeek], chainId);
+    const [{ number: b1 }, { number: b2 }, { number: bWeek }] =
+      await this.getBlocksFromTimestamps([oneDay, twoDay, oneWeek], chainId);
     try {
       const url = this.configService.getData<string>(
         `${chainId}.subgraph.principal`,
       );
 
-      const [
-        current,
-        { oneDayData, twoDayData, oneWeekData },
-      ] = await Promise.all([
-        this.executeQuerySubraph(url, PAIRS_BULK(pairList)),
-        this.getDaysData(b1, b2, bWeek, pairList, url),
-      ]);
+      const [current, { oneDayData, twoDayData, oneWeekData }] =
+        await Promise.all([
+          this.executeQuerySubraph(url, PAIRS_BULK(pairList)),
+          this.getDaysData(b1, b2, bWeek, pairList, url),
+        ]);
       const pairData = await Promise.all(
         current &&
           current.data.pairs.map(async (pair) => {

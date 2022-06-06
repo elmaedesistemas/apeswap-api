@@ -61,8 +61,7 @@ export class NfasService {
     const allData = await this.fetchNfas({});
     if (allData.length > 0)
       return {
-        info:
-          'Ya hay información en la BD, limpia la BD para ingresar la nueva información',
+        info: 'Ya hay información en la BD, limpia la BD para ingresar la nueva información',
       };
 
     const url = 'https://apeswap-nfa-apis.herokuapp.com/nfas';

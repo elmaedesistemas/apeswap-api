@@ -7,9 +7,8 @@ import { goldenBananaAddress } from './utils/stats.utils';
 
 @Injectable()
 export class PriceService {
-  private readonly TOKEN_LIST_URL = this.configService.getData<string>(
-    'tokenListUrl',
-  );
+  private readonly TOKEN_LIST_URL =
+    this.configService.getData<string>('tokenListUrl');
   constructor(
     private httpService: HttpService,
     private subgraphService: SubgraphService,
