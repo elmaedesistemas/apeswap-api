@@ -344,7 +344,7 @@ export class BillsService {
 
   async loadingBananaPriceAndUpdateBill() {
     let isFinishedUpdate = false;
-    let totalPerBash = 50;
+    let totalPerBash = 42;
     while (!isFinishedUpdate) {
       let billMetadata = await this.billMetadataModel
         .find({ 'data.bananaPrice': { $exists: false } })
@@ -365,6 +365,10 @@ export class BillsService {
             end = skip + skipCount;
           }
           const sliced = txHashList.slice(skip, end);
+          if(sliced.length == 0) {
+            allFound = true;
+            break;
+          }
           const result = await this.bitqueryService.getTransactionInfoByHash(
             sliced,
           );
@@ -398,11 +402,11 @@ export class BillsService {
             end = skip + skipCount;
           }
           const sliced = fetchedTransactions.slice(skip, end);
-          const result = await this.bitqueryService.getPriceByBlock(sliced);
-          if(result.length == 0) {
+          if(sliced.length == 0) {
             allFound = true;
             break;
           }
+          const result = await this.bitqueryService.getPriceByBlock(sliced);
           fetchedPrices = {
             ...fetchedPrices,
             ...result,
@@ -466,5 +470,6 @@ export class BillsService {
         isFinishedUpdate = true;
       }
     }
+    this.logger.log(`Finished updated`);
   }
 }
