@@ -344,7 +344,7 @@ export class BillsService {
 
   async loadingBananaPriceAndUpdateBill() {
     let isFinishedUpdate = false;
-    let totalPerBash = 42;
+    let totalPerBash = 50;
     while (!isFinishedUpdate) {
       let billMetadata = await this.billMetadataModel
         .find({ 'data.bananaPrice': { $exists: false } })
