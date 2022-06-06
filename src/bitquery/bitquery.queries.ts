@@ -249,3 +249,85 @@ export function queryLPVolume(
 }
   `;
 }
+
+
+export const queryPriceByBlock = (blocks) => {
+  let query = `
+  query prices {
+    ethereum(network: bsc) {`;
+
+  blocks.map(({block: {height}}) => {
+    const lower = height - 10;
+    const upper = height + 10;
+    query += `during_${height}: dexTrades(
+      options: {asc: "block.height"}
+      buyCurrency: {is: "0x603c7f932ed1fc6575303d8fb018fdcbb0f39a95"}
+      sellCurrency: {is: "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"}
+    ) {
+      price
+      block(height: {between: [${lower}, ${upper}]}) {
+        height
+      }
+    },
+    before_${height}: dexTrades(
+      options: {limit: 1, desc: "block.height"}
+      buyCurrency: {is: "0x603c7f932ed1fc6575303d8fb018fdcbb0f39a95"}
+      sellCurrency: {is: "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"}
+    ) {
+      price
+      block(height: {lt: ${lower}}) {
+        height
+      }
+    },
+    after_${height}: dexTrades(
+      options: {limit: 1, asc: "block.height"}
+      buyCurrency: {is: "0x603c7f932ed1fc6575303d8fb018fdcbb0f39a95"}
+      sellCurrency: {is: "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"}
+    ) {
+      price
+      block(height: {gt: ${upper}}) {
+        height
+      }
+    }
+    bnb_price_${height}: dexTrades(
+      options: {limit: 1, asc: "block.height"}
+      baseCurrency: {is: "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"}
+      quoteCurrency: {is: "0xe9e7cea3dedca5984780bafc599bd69add087d56"}
+    ) {
+      block(height: {between: [${lower}, ${upper}]}) {
+        height
+        timestamp {
+          time(format: "%Y-%m-%d %H:%M:%S")
+        }
+      }
+      quotePrice
+    }
+    `;
+  });
+  query += `}
+  }`;
+
+  return query;
+};
+
+export function queryTransactionInfoByHash() {
+  return `
+  query($hashs: [String!]) {
+    ethereum(network: bsc) {
+      transactions(
+        txHash: {in: $hashs}
+      ) {
+        block {
+          height
+          timestamp{
+            time(format: "%Y-%m-%d %H:%M:%S")
+          }
+        }
+        hash
+        sender {
+          address
+        }
+      }
+    }
+  }`;
+}

@@ -13,7 +13,9 @@ import {
   queryLPVolume,
   queryPairInformation,
   queryPoolBalances,
+  queryPriceByBlock,
   queryTokenInformation,
+  queryTransactionInfoByHash,
   queryTreasuryGnana,
   QUOTE_CURRENCY_BSC,
 } from './bitquery.queries';
@@ -299,6 +301,33 @@ export class BitqueryService {
         volumes: [],
         balance: [],
       };
+    }
+  }
+
+  async getPriceByBlock(blocks = []) {
+    try {
+      
+      const {data: { ethereum }} = await this.queryBitquery(queryPriceByBlock(blocks));
+  
+      return ethereum;
+    } catch (error) {
+      return [];
+    }
+  }
+
+  async getTransactionInfoByHash(hashs: string[]) {
+    try {
+      const {
+        data: {
+          ethereum: { transactions },
+        },
+      } = await this.queryBitquery(
+        queryTransactionInfoByHash(),
+        { hashs },
+      );
+      return transactions;
+    } catch (error) {
+      return [];
     }
   }
   // bitquery

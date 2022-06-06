@@ -9,6 +9,7 @@ import BigNumber from 'bignumber.js';
 import { utils } from 'ethers';
 import { Model } from 'mongoose';
 import sleep from 'sleep-promise';
+import { BitqueryService } from 'src/bitquery/bitquery.service';
 import { createLpPairName } from 'src/utils/helpers';
 import { Network } from 'src/web3/network.enum';
 import { Web3Service } from 'src/web3/web3.service';
@@ -22,6 +23,7 @@ import {
   BillsMetadataDocument,
 } from './schema/billsMetadata.schema';
 import { getLpInfo } from './token.helper';
+import { BillSummaryDto } from './interface/billSumarry.dto';
 
 @Injectable()
 export class BillsService {
@@ -41,6 +43,7 @@ export class BillsService {
     private image: BillsImagesService,
     @InjectModel(BillsMetadata.name)
     public billMetadataModel: Model<BillsMetadataDocument>,
+    private bitqueryService: BitqueryService,
   ) {
     this.listenToEvents();
   }
@@ -152,9 +155,8 @@ export class BillsService {
       this.logger.log(`Loading bill ${tokenId}`);
       const billData = await this.getBillDataWithNftId({ tokenId });
       if (!this.billCreations[billData.createTransactionHash]) {
-        this.billCreations[billData.createTransactionHash] = this.createNewBill(
-          billData,
-        );
+        this.billCreations[billData.createTransactionHash] =
+          this.createNewBill(billData);
       }
       billMetadata = await this.billCreations[
         billData.createTransactionHash
@@ -235,9 +237,8 @@ export class BillsService {
         const { billData } = await this.getBillDataFromTransaction(
           event.transactionHash,
         );
-        this.billCreations[event.transactionHash] = this.createNewBill(
-          billData,
-        );
+        this.billCreations[event.transactionHash] =
+          this.createNewBill(billData);
         await this.billCreations[event.transactionHash].catch();
         delete this.billCreations[event.transactionHash];
       }
@@ -314,5 +315,156 @@ export class BillsService {
       token1: lpData.token1,
     };
     return billData;
+  }
+
+  async getBillSummary(): Promise<BillSummaryDto[]> {
+    let pendingBillMetadata = await this.billMetadataModel
+      .find({ 'data.bananaPrice': { $exists: false } })
+      .sort({ tokenId: 1 });
+    if (pendingBillMetadata.length > 0) {
+      this.logger.log('Update latest records');
+      await this.loadingBananaPriceAndUpdateBill();
+    }
+    let billMetadata = await this.billMetadataModel.find().sort({ tokenId: 1 });
+    const billSummary: BillSummaryDto[] = billMetadata.map((bill) => ({
+      billNftId: bill.data.billNftId,
+      bananaPrice: bill.data.bananaPrice,
+      createdAddressOwner: bill.data.createdAddressOwner,
+      createdAt: bill.data.createdAt,
+      lp: `${bill.data.token0.symbol}-${bill.data.token1.symbol}`,
+      payoutToken: bill.data.payoutTokenData.symbol,
+      vestingTime: bill.data.vestingPeriodSeconds / 60 / 60 / 24,
+      payout: bill.data.payout,
+      deposit: bill.data.deposit,
+      dollarValue: bill.data.dollarValue,
+    }));
+
+    return billSummary;
+  }
+
+  async loadingBananaPriceAndUpdateBill() {
+    let isFinishedUpdate = false;
+    let totalPerBash = 50;
+    while (!isFinishedUpdate) {
+      let billMetadata = await this.billMetadataModel
+        .find({ 'data.bananaPrice': { $exists: false } })
+        .sort({ tokenId: 1 })
+        .limit(totalPerBash);
+      if (billMetadata.length > 0) {
+        this.logger.log(`Total bills record ${billMetadata.length}`);
+        const txHashList = billMetadata.map(
+          (bill) => bill.data.createTransactionHash,
+        );
+        let allFound = false;
+        let skip = 0;
+        let skipCount = 80;
+        let fetchedTransactions = [];
+        while (!allFound) {
+          let end = txHashList.length;
+          if (skip + skipCount < txHashList.length) {
+            end = skip + skipCount;
+          }
+          const sliced = txHashList.slice(skip, end);
+          const result = await this.bitqueryService.getTransactionInfoByHash(
+            sliced,
+          );
+          if(result.length == 0) {
+            allFound = true;
+            break;
+          }
+          fetchedTransactions = [...fetchedTransactions, ...result];
+          if (
+            Object.keys(result).length < skipCount ||
+            skip + skipCount > txHashList.length
+          ) {
+            allFound = true;
+          } else {
+            skip += skipCount;
+          }
+        }
+        this.logger.log(
+          `Finish get Transactions ${fetchedTransactions.length}`,
+        );
+        allFound = false;
+        skip = 0;
+        skipCount = 7; //Not greater than 7 because the query would be very large and it sends a bitquery error
+        let fetchedPrices;
+        this.logger.log(
+          `Get prices from ${fetchedTransactions.length / skipCount} batches`,
+        );
+        while (!allFound) {
+          let end = fetchedTransactions.length;
+          if (skip + skipCount < fetchedTransactions.length) {
+            end = skip + skipCount;
+          }
+          const sliced = fetchedTransactions.slice(skip, end);
+          const result = await this.bitqueryService.getPriceByBlock(sliced);
+          if(result.length == 0) {
+            allFound = true;
+            break;
+          }
+          fetchedPrices = {
+            ...fetchedPrices,
+            ...result,
+          };
+          if (
+            Object.keys(result).length < skipCount ||
+            skip + skipCount > fetchedTransactions.length
+          ) {
+            allFound = true;
+          } else {
+            skip += skipCount;
+          }
+        }
+        this.logger.log(`Finish get prices`);
+        const priceKeys = Object.keys(fetchedPrices);
+        const f = fetchedTransactions.map(({ block: { height: h } }) => {
+          const c = priceKeys.filter((d) => d.includes('' + h));
+          const v = {
+            block: h,
+            data: [],
+          };
+          c.map((x) => {
+            v.data.push(fetchedPrices[x]);
+          });
+          return v;
+        });
+        billMetadata.map(async (bill, index) => {
+          const bnbPrice =
+            f[index].data[3].length > 0 ? f[index].data[3][0].quotePrice : 1;
+          const bananaPriceDuring =
+            f[index].data[0].length > 0
+              ? f[index].data[0][0].price * bnbPrice
+              : 0;
+          const bananaPriceBefore =
+            f[index].data[1].length > 0
+              ? f[index].data[1][0].price * bnbPrice
+              : 0;
+          const bananaPriceAfter =
+            f[index].data[2].length > 0
+              ? f[index].data[2][0].price * bnbPrice
+              : 0;
+          const price =
+            bananaPriceBefore > 0
+              ? bananaPriceBefore
+              : bananaPriceDuring > 0
+              ? bananaPriceDuring
+              : bananaPriceAfter > 0
+              ? bananaPriceAfter
+              : 0;
+          await bill.updateOne({
+            $set: {
+              'data.bananaPrice': price,
+              'data.createdAddressOwner':
+                fetchedTransactions[index].sender.address,
+              'data.createdAt': fetchedTransactions[index].block.timestamp.time,
+            },
+          });
+        });
+        this.logger.log(`Finish mapping`);
+      } else {
+        isFinishedUpdate = true;
+      }
+    }
   }
 }

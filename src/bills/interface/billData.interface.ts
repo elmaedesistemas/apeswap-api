@@ -19,6 +19,9 @@ export interface BillData {
   token0: TokenData;
   token1: TokenData;
   dollarValue?: number;
+  bananaPrice?: number;
+  createdAddressOwner?: string;
+  createdAt?: string;
 }
 
 export interface Terms {

@@ -1,6 +1,9 @@
-import { Controller, Get, Logger, Param } from '@nestjs/common';
+import { Controller, Get, Logger, Param, Post } from '@nestjs/common';
+import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { BillsService } from './bills.service';
+import { BillSummaryDto } from './interface/billSumarry.dto';
 
+@ApiTags('bills')
 @Controller('bills')
 export class BillsController {
   private readonly logger = new Logger(BillsController.name);
@@ -22,5 +25,18 @@ export class BillsController {
       tokenId: +billId,
       transactionHash,
     });
+  }
+
+  @Get('/summary')
+  async getBillSummary(): Promise<BillSummaryDto[]> {
+    this.logger.debug('Called GET /bill/summary');
+    return await this.billsService.getBillSummary();
+  }
+  
+  @ApiExcludeEndpoint()
+  @Post('/loading/price')
+  async loadingBananaPrice() {
+    this.logger.debug('Called GET /bill/summary');
+    return await this.billsService.loadingBananaPriceAndUpdateBill();
   }
 }
