@@ -305,11 +305,15 @@ export class StatsService {
             marketContractAddress.toUpperCase() == marketAddress.toUpperCase(),
         );
 
+        const supplyDistributionApyPercent =
+          marketData.apys.supplyDistributionApyPercent ?? 0;
+        const borrowDistributionApyPercent =
+          marketData.apys.borrowDistributionApyPercent ?? 0;
         // TODO: Include distribution APYs
         if (type.toUpperCase() === 'SUPPLY') {
-          apy = marketData.apys.supplyApyPercent;
+          apy = marketData.apys.supplyApyPercent + supplyDistributionApyPercent;
         } else if (type.toUpperCase() === 'BORROW') {
-          apy = marketData.apys.borrowApyPercent;
+          apy = marketData.apys.borrowApyPercent + borrowDistributionApyPercent;
         } else {
           apy = 0;
         }
@@ -320,6 +324,8 @@ export class StatsService {
           apy,
           token: { name, address: tokenAddress },
           link: 'https://lending.apeswap.finance',
+          supplyDistributionApyPercent,
+          borrowDistributionApyPercent,
         });
       });
 
@@ -342,8 +348,8 @@ export class StatsService {
   }
 
   async getAllLendingMarketData(): Promise<LendingMarket[]> {
-    this.logger.log(`Attempting to calculate lending market`);
     try {
+      const { bananaPrice } = await this.findGeneralStats();
       const lendingData: LendingMarket[] = [];
       const allLendingMarkets = lendingMarkets();
       const olaCompoundLensContract =
@@ -372,8 +378,9 @@ export class StatsService {
           exchangeRateCurrent,
           totalBorrows,
           reserveFactorMantissa,
+          incentiveSupplySpeed,
+          incentiveBorrowSpeed,
         } = allMetada[i][0];
-
         const { underlyingPrice } = allUnderlying[i][0];
 
         const apys = calculateSupplyAndBorrowApys(
@@ -385,6 +392,9 @@ export class StatsService {
           exchangeRateCurrent,
           totalBorrows,
           reserveFactorMantissa,
+          incentiveSupplySpeed,
+          incentiveBorrowSpeed,
+          bananaPrice,
         );
 
         lendingData.push({
