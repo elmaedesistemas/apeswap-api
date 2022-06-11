@@ -4,12 +4,16 @@ import {
   Get,
   Logger,
   Param,
-  Request,
   UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiExcludeEndpoint,
+  ApiOkResponse,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import {
   ChainIdDto,
   GeneralStats,
@@ -68,12 +72,13 @@ export class StatsController {
   }
 
   @Get('/farmPrices')
-  async getFarmPrices(): Promise<any> {
+  async getFarmPrices(): Promise<Map<string, number>> {
     this.logger.debug('Called GET /stats/farmPrices');
     return await this.statsService.getFarmPrices();
   }
 
   @Throttle(700, 60)
+  @ApiParam({ type: Number, name: 'chainId', enum: [56, 137] })
   @Get('/network/lpAprs/:chainId')
   async getLpAprs(@Param() chainIdDto: ChainIdDto): Promise<ApeLpApr> {
     this.logger.debug('Called GET /stats/network/lpAprs/:chainId');
@@ -86,6 +91,7 @@ export class StatsController {
     return await this.statsService.getHomepageFeatures();
   }
 
+  @ApiParam({ type: Number, name: 'chainId', enum: [56, 137] })
   @Get('network/:chainId')
   @UsePipes(new ValidationPipe({ transform: true }))
   async getStatsNetwork(
@@ -102,13 +108,5 @@ export class StatsController {
   async get(): Promise<any> {
     this.logger.debug('Called GET /stats/get');
     return this.statsService.getDefistation();
-  }
-
-  @ApiExcludeEndpoint()
-  @Get(':wallet')
-  async getStatsForWallet(@Param('wallet') wallet: string): Promise<string> {
-    this.logger.debug('Called GET /stats/:wallet');
-    // return this.statsService.getStatsForWallet(wallet);
-    return 'Depcrecated';
   }
 }

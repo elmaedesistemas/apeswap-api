@@ -9,7 +9,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { BitqueryService } from './bitquery.service';
 import { CandleDto, CandleOptionsDto } from './dto/candle.dto';
 import { PairInformationDto } from './dto/pairInformation.dto';
@@ -22,6 +22,8 @@ export class BitqueryController {
   private readonly logger = new Logger(BitqueryController.name);
   constructor(private bitqueryService: BitqueryService) {}
 
+  @ApiParam({ name: 'network', enum: ['bsc', 'polygon'] })
+  @ApiParam({ name: 'address', description: 'Token address 0x...' })
   @Get('/pair/:network/:address')
   async getPairInformation(
     @Param('address') address: string,
@@ -30,6 +32,9 @@ export class BitqueryController {
     this.logger.debug(`Called GET /pair/${network}/${address}`);
     return await this.bitqueryService.getPairInformation(address, network);
   }
+
+  @ApiParam({ name: 'network', enum: ['bsc', 'polygon'] })
+  @ApiParam({ name: 'address', description: 'Token address 0x...' })
   @Get('/token/:network/:address')
   async getTokenInformation(
     @Param('address') address: string,
@@ -38,6 +43,18 @@ export class BitqueryController {
     this.logger.debug(`Called GET /token/${network}/${address}`);
     return await this.bitqueryService.getTokenInformation(address, network);
   }
+
+  @ApiParam({ name: 'address', description: 'Token address 0x...' })
+  @ApiQuery({
+    name: 'from',
+    description: 'Date format YYYY-MM-DD',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'to',
+    description: 'Date format YYYY-MM-DD',
+    required: false,
+  })
   @Get('/candle/:address')
   @UsePipes(new ValidationPipe({ transform: true }))
   async getCandleToken(

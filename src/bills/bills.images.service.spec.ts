@@ -1,11 +1,11 @@
 import { HttpModule } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BillsImagesService } from './bills.images.service';
-import { BillMetadata } from './interface/billData.interface';
+import { BillMetadataDto } from './interface/billData.dto';
 import { generateAttributes } from './random.layers';
 import { cloneDeep, random } from 'lodash';
 
-const MockMetadata: BillMetadata = {
+const MockMetadata: BillMetadataDto = {
   attributes: [
     {
       trait_type: 'Principal Token',
@@ -143,11 +143,11 @@ describe('Bills.ImagesService', () => {
       './v1/BANANA.png',
       './v1/WBNB.png',
     ];
-    const image = await service.createLayers(layers);
+    await service.createLayers(layers);
   });
 
   it('Should generate bill V1 image with metadata', async () => {
-    const image = await service.createBillImageWithMetadata(MockMetadata);
+    await service.createBillImageWithMetadata(MockMetadata);
   });
 
   it('Should generate  and upload bill V1 image with metadata', async () => {

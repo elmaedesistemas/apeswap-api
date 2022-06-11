@@ -6,7 +6,7 @@ import {
   Param,
   UseInterceptors,
 } from '@nestjs/common';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiParam, ApiTags } from '@nestjs/swagger';
 import { TokenList } from 'src/interfaces/tokens/tokenList.dto';
 import { SentryInterceptor } from 'src/interceptor/sentry.interceptor';
 import { TokensService } from './tokens.service';
@@ -28,6 +28,10 @@ export class TokensController {
     return await this.tokensService.getAllTokens();
   }
 
+  @ApiParam({
+    name: 'type',
+    enum: ['all-56', 'all-137', 'partner', 'primary', 'trending', 'polygon'],
+  })
   @Get(':type')
   async getTokensPerType(@Param('type') type: string): Promise<Token[]> {
     this.logger.log('Called GET /tokens/:type');

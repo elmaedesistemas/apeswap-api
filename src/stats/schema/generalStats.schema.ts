@@ -46,7 +46,7 @@ export class GeneralStats {
 
   @Prop({ required: false })
   lendingData: [];
-  
+
   @Prop({ required: false })
   bills: [];
 

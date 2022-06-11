@@ -451,16 +451,12 @@ export async function calculateMiscAmounts(
   token1,
   chainId,
 ) {
-  const [
-    quoteTokenBlanceLP,
-    tokenBalanceLP,
-    lpTokenBalanceMC,
-    lpTotalSupply,
-  ] = await multicallNetwork(
-    abiErc,
-    getCallsErcBalances(dualFarmConfig, miniChefAddress),
-    chainId,
-  );
+  const [quoteTokenBlanceLP, tokenBalanceLP, lpTokenBalanceMC, lpTotalSupply] =
+    await multicallNetwork(
+      abiErc,
+      getCallsErcBalances(dualFarmConfig, miniChefAddress),
+      chainId,
+    );
   const lpTokenRatio = new BigNumber(lpTokenBalanceMC).div(
     new BigNumber(lpTotalSupply),
   );
@@ -578,29 +574,26 @@ export async function getAllocInfo(
   let multiplier = 'unset';
   let miniChefPoolRewardPerSecond = null;
   try {
-    const [
-      info,
-      totalAllocPoint,
-      miniChefRewardsPerSecond,
-    ] = await multicallNetwork(
-      abiMasterApe,
-      [
-        {
-          address: miniChefAddress,
-          name: 'poolInfo',
-          params: [dualFarmConfig.pid],
-        },
-        {
-          address: miniChefAddress,
-          name: 'totalAllocPoint',
-        },
-        {
-          address: miniChefAddress,
-          name: 'bananaPerSecond',
-        },
-      ],
-      chainId,
-    );
+    const [info, totalAllocPoint, miniChefRewardsPerSecond] =
+      await multicallNetwork(
+        abiMasterApe,
+        [
+          {
+            address: miniChefAddress,
+            name: 'poolInfo',
+            params: [dualFarmConfig.pid],
+          },
+          {
+            address: miniChefAddress,
+            name: 'totalAllocPoint',
+          },
+          {
+            address: miniChefAddress,
+            name: 'bananaPerSecond',
+          },
+        ],
+        chainId,
+      );
     const allocPoint = new BigNumber(info.allocPoint._hex);
     const poolWeight = allocPoint.div(new BigNumber(totalAllocPoint));
     miniChefPoolRewardPerSecond = getBalanceNumber(

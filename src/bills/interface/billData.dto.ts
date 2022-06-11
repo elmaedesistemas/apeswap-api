@@ -40,7 +40,7 @@ export interface Attribute {
   value: string;
 }
 
-export interface BillMetadata {
+export class BillMetadataDto {
   name: string;
   description: string;
   tokenId: number;

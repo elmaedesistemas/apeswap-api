@@ -1,4 +1,4 @@
-import { Attribute, BillData } from './interface/billData.interface';
+import { Attribute, BillData } from './interface/billData.dto';
 import Prando from 'prando';
 
 export const Legend = [

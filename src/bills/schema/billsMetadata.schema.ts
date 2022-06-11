@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { Attribute, BillData } from '../interface/billData.interface';
+import { Attribute, BillData } from '../interface/billData.dto';
 
 export type BillsMetadataDocument = BillsMetadata & Document;
 

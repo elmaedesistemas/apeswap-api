@@ -11,7 +11,7 @@ import svg2img from 'svg2img';
 import { groupBy, mapValues } from 'lodash';
 import { writeFile, readFile, readdir } from 'fs/promises';
 import moment from 'moment';
-import { BillMetadata } from './interface/billData.interface';
+import { BillMetadataDto } from './interface/billData.dto';
 import { pinFileToIPFS } from './pinata.helper';
 import sleep from 'sleep-promise';
 
@@ -42,7 +42,7 @@ export class BillsImagesService {
     });
   }
 
-  async createAndUploadBillImage(billMetadata: BillMetadata, attempt = 0) {
+  async createAndUploadBillImage(billMetadata: BillMetadataDto, attempt = 0) {
     try {
       this.logger.log(`Generating bill ${billMetadata.name}`);
       const buffer = await this.createBillImageWithMetadata(billMetadata);
@@ -67,7 +67,7 @@ export class BillsImagesService {
     }
   }
 
-  async createBillImageWithMetadata(billMetadata: BillMetadata) {
+  async createBillImageWithMetadata(billMetadata: BillMetadataDto) {
     const baseLayers = this.getLayers(billMetadata);
 
     const layers = await this.createLayers(baseLayers);
@@ -164,7 +164,7 @@ export class BillsImagesService {
     return textToImage;
   }
 
-  getLayers(billMetadata: BillMetadata) {
+  getLayers(billMetadata: BillMetadataDto) {
     let billBorder = 'bnw';
     if (
       billMetadata.data.dollarValue >= 50 &&

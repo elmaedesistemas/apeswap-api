@@ -10,9 +10,8 @@ import { StrapiTokensObject, Token } from 'src/interfaces/tokens/token.dto';
 @Injectable()
 export class TokensService {
   private readonly logger = new Logger(TokensService.name);
-  private readonly TOKEN_LIST_URL = this.configService.getData<string>(
-    'tokenListUrl',
-  );
+  private readonly TOKEN_LIST_URL =
+    this.configService.getData<string>('tokenListUrl');
   private readonly POLYGONSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY;
 
   constructor(
@@ -88,12 +87,10 @@ export class TokensService {
   async processTokensFromSubgraphData(
     chainId: number,
     tokenListConfig: StrapiTokensObject[],
-  ): Promise<TokenList[]> {
+  ): Promise<Token[]> {
     // 1. Get raw token data from subgraph, both now & 24 hours ago
-    const {
-      currentTokenData,
-      previousTokenData,
-    } = await this.getRawTokenDataFromSubgraph(chainId);
+    const { currentTokenData, previousTokenData } =
+      await this.getRawTokenDataFromSubgraph(chainId);
 
     // 2. Filter raw token data into data for the database
     const filteredTokenData = await this.prepDataForDatabase(
@@ -101,10 +98,15 @@ export class TokensService {
       previousTokenData,
     );
 
-    const tokenStorageResponse = await this.createTokenList({
-      title: `all-${chainId}`,
+    const type = `all-${chainId}`;
+    await this.createTokenList({
+      title: type,
       tokens: filteredTokenData,
     });
+
+    const tokenStorageResponse: TokenList = await await this.findTokenList(
+      type,
+    );
 
     // 4. Iterate through the token lists on strapi to map to subgraph data & store findings in the database
     tokenListConfig.forEach(async (tokenList) => {
@@ -130,7 +132,7 @@ export class TokensService {
     this.logger.log(
       `Refresh for chain ${chainId} complete. Data stored in database`,
     );
-    return tokenStorageResponse;
+    return tokenStorageResponse.tokens;
   }
 
   /*

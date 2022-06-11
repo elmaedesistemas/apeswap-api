@@ -15,7 +15,7 @@ import { Web3Service } from 'src/web3/web3.service';
 import { BillNft_abi } from './abi/BillNft.abi';
 import { CUSTOM_BILL_ABI } from './abi/CustomBill.abi';
 import { BillsImagesService } from './bills.images.service';
-import { BillData, BillTerms } from './interface/billData.interface';
+import { BillData, BillMetadataDto, BillTerms } from './interface/billData.dto';
 import { generateAttributes, generateV1Attributes } from './random.layers';
 import {
   BillsMetadata,
@@ -152,9 +152,8 @@ export class BillsService {
       this.logger.log(`Loading bill ${tokenId}`);
       const billData = await this.getBillDataWithNftId({ tokenId });
       if (!this.billCreations[billData.createTransactionHash]) {
-        this.billCreations[billData.createTransactionHash] = this.createNewBill(
-          billData,
-        );
+        this.billCreations[billData.createTransactionHash] =
+          this.createNewBill(billData);
       }
       billMetadata = await this.billCreations[
         billData.createTransactionHash
@@ -167,8 +166,12 @@ export class BillsService {
     return billMetadata;
   }
 
-  async getBillMetadataWithHash({ transactionHash, tokenId, attempt = 0 }) {
-    let billMetadata = await this.billMetadataModel.findOne(
+  async getBillMetadataWithHash({
+    transactionHash,
+    tokenId,
+    attempt = 0,
+  }): Promise<BillMetadataDto> {
+    let billMetadata: BillMetadataDto = await this.billMetadataModel.findOne(
       { tokenId },
       '-_id',
     );
@@ -235,9 +238,8 @@ export class BillsService {
         const { billData } = await this.getBillDataFromTransaction(
           event.transactionHash,
         );
-        this.billCreations[event.transactionHash] = this.createNewBill(
-          billData,
-        );
+        this.billCreations[event.transactionHash] =
+          this.createNewBill(billData);
         await this.billCreations[event.transactionHash].catch();
         delete this.billCreations[event.transactionHash];
       }

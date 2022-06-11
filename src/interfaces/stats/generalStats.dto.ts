@@ -87,5 +87,5 @@ export class HomepageFeatures {
   farmDetails: YieldFarmingFeature[];
   poolDetails: YieldFarmingFeature[];
   lendingDetails: LendingFeature[];
-  billDetails?: BillFeature[];
+  billDetails: BillFeature[];
 }

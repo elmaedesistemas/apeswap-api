@@ -24,7 +24,6 @@ import { multicall, multicallNetwork } from 'src/utils/lib/multicall';
 import {
   gBananaTreasury,
   masterApeContractWeb,
-  olaCompoundLensContractWeb3,
   bananaAddress,
   goldenBananaAddress,
   masterApeContractAddress,
@@ -216,8 +215,8 @@ export class StatsService {
     return { tvl, volume: parseInt(volume), data };
   }
 
-  async getFarmPrices(): Promise<any> {
-    const farmPrices = {};
+  async getFarmPrices(): Promise<Map<string, number>> {
+    const farmPrices = new Map<string, number>();
     const allStats = await this.getAllStats();
     const { farms } = allStats;
 
@@ -253,9 +252,12 @@ export class StatsService {
 
       // Filter through farms on strapi, assign applicable values from stats
       featuredFarms.forEach((element) => {
-        const { name: farmName, address, poolIndex, apr } = farms.find(
-          ({ poolIndex }) => element === poolIndex,
-        );
+        const {
+          name: farmName,
+          address,
+          poolIndex,
+          apr,
+        } = farms.find(({ poolIndex }) => element === poolIndex);
 
         // Format string to make harambe happy
         const name = farmName.replace(/[\[\]]/g, '').slice(0, -3);
@@ -300,9 +302,11 @@ export class StatsService {
           ({ marketAddress }) =>
             marketContractAddress.toUpperCase() == marketAddress.toUpperCase(),
         );
-        
-        const supplyDistributionApyPercent = marketData.apys.supplyDistributionApyPercent ?? 0;
-        const borrowDistributionApyPercent = marketData.apys.borrowDistributionApyPercent ?? 0;
+
+        const supplyDistributionApyPercent =
+          marketData.apys.supplyDistributionApyPercent ?? 0;
+        const borrowDistributionApyPercent =
+          marketData.apys.borrowDistributionApyPercent ?? 0;
         // TODO: Include distribution APYs
         if (type.toUpperCase() === 'SUPPLY') {
           apy = marketData.apys.supplyApyPercent + supplyDistributionApyPercent;
@@ -311,7 +315,6 @@ export class StatsService {
         } else {
           apy = 0;
         }
-        
 
         lendingDetails.push({
           marketName: type + ' ' + name,
@@ -320,7 +323,7 @@ export class StatsService {
           token: { name, address: tokenAddress },
           link: 'https://lending.apeswap.finance',
           supplyDistributionApyPercent,
-          borrowDistributionApyPercent
+          borrowDistributionApyPercent,
         });
       });
 
@@ -346,9 +349,8 @@ export class StatsService {
     const { bananaPrice } = await this.findGeneralStats();
     const lendingData: LendingMarket[] = [];
     const allLendingMarkets = lendingMarkets();
-    const olaCompoundLensContract = this.configService.getData<string>(
-      `56.olaCompoundLens`,
-    );
+    const olaCompoundLensContract =
+      this.configService.getData<string>(`56.olaCompoundLens`);
 
     const callsMetadata = allLendingMarkets.map((markets) => ({
       address: olaCompoundLensContract,
@@ -374,7 +376,7 @@ export class StatsService {
         totalBorrows,
         reserveFactorMantissa,
         incentiveSupplySpeed,
-        incentiveBorrowSpeed
+        incentiveBorrowSpeed,
       } = allMetada[i][0];
       const { underlyingPrice } = allUnderlying[i][0];
 
@@ -389,9 +391,9 @@ export class StatsService {
         reserveFactorMantissa,
         incentiveSupplySpeed,
         incentiveBorrowSpeed,
-        bananaPrice
+        bananaPrice,
       );
-      
+
       lendingData.push({
         name,
         marketAddress: contract,
@@ -820,40 +822,34 @@ export class StatsService {
 
   async getLpInfo(tokenAddress, stakingAddress) {
     try {
-      const [
-        reserves,
-        decimals,
-        token0,
-        token1,
-        supply,
-        balanceOf,
-      ] = await multicall(LP_ABI, [
-        {
-          address: tokenAddress,
-          name: 'getReserves',
-        },
-        {
-          address: tokenAddress,
-          name: 'decimals',
-        },
-        {
-          address: tokenAddress,
-          name: 'token0',
-        },
-        {
-          address: tokenAddress,
-          name: 'token1',
-        },
-        {
-          address: tokenAddress,
-          name: 'totalSupply',
-        },
-        {
-          address: tokenAddress,
-          name: 'balanceOf',
-          params: [stakingAddress],
-        },
-      ]);
+      const [reserves, decimals, token0, token1, supply, balanceOf] =
+        await multicall(LP_ABI, [
+          {
+            address: tokenAddress,
+            name: 'getReserves',
+          },
+          {
+            address: tokenAddress,
+            name: 'decimals',
+          },
+          {
+            address: tokenAddress,
+            name: 'token0',
+          },
+          {
+            address: tokenAddress,
+            name: 'token1',
+          },
+          {
+            address: tokenAddress,
+            name: 'totalSupply',
+          },
+          {
+            address: tokenAddress,
+            name: 'balanceOf',
+            params: [stakingAddress],
+          },
+        ]);
 
       const totalSupply = supply / 10 ** decimals[0];
       const staked = balanceOf / 10 ** decimals[0];
@@ -1044,29 +1040,25 @@ export class StatsService {
     const poolContract = getContract(pool.abi, pool.address);
 
     if (pool.stakeTokenIsLp) {
-      const [
-        reserves,
-        stakedTokenDecimals,
-        t0Address,
-        t1Address,
-      ] = await multicall(LP_ABI, [
-        {
-          address: pool.stakeToken,
-          name: 'getReserves',
-        },
-        {
-          address: pool.stakeToken,
-          name: 'decimals',
-        },
-        {
-          address: pool.stakeToken,
-          name: 'token0',
-        },
-        {
-          address: pool.stakeToken,
-          name: 'token1',
-        },
-      ]);
+      const [reserves, stakedTokenDecimals, t0Address, t1Address] =
+        await multicall(LP_ABI, [
+          {
+            address: pool.stakeToken,
+            name: 'getReserves',
+          },
+          {
+            address: pool.stakeToken,
+            name: 'decimals',
+          },
+          {
+            address: pool.stakeToken,
+            name: 'token0',
+          },
+          {
+            address: pool.stakeToken,
+            name: 'token1',
+          },
+        ]);
 
       const rewardTokenContract = getContract(ERC20_ABI, pool.rewardToken);
       const rewardDecimals = await rewardTokenContract.methods
@@ -1197,29 +1189,25 @@ export class StatsService {
         rewardTokenPrice = 0;
       }
 
-      const [
-        name,
-        stakedTokenDecimals,
-        rewardDecimals,
-        rewardTokenSymbol,
-      ] = await multicall(ERC20_ABI, [
-        {
-          address: pool.stakeToken,
-          name: 'symbol',
-        },
-        {
-          address: pool.stakeToken,
-          name: 'decimals',
-        },
-        {
-          address: pool.rewardToken,
-          name: 'decimals',
-        },
-        {
-          address: pool.rewardToken,
-          name: 'symbol',
-        },
-      ]);
+      const [name, stakedTokenDecimals, rewardDecimals, rewardTokenSymbol] =
+        await multicall(ERC20_ABI, [
+          {
+            address: pool.stakeToken,
+            name: 'symbol',
+          },
+          {
+            address: pool.stakeToken,
+            name: 'decimals',
+          },
+          {
+            address: pool.rewardToken,
+            name: 'decimals',
+          },
+          {
+            address: pool.rewardToken,
+            name: 'symbol',
+          },
+        ]);
 
       let [totalSupply, stakedSupply] = await multicall(ERC20_ABI, [
         {

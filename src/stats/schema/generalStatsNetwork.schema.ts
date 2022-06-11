@@ -45,6 +45,5 @@ export class GeneralStatsNetwork {
   createdAt: Date;
 }
 
-export const GeneralStatsNetworkSchema = SchemaFactory.createForClass(
-  GeneralStatsNetwork,
-);
+export const GeneralStatsNetworkSchema =
+  SchemaFactory.createForClass(GeneralStatsNetwork);
