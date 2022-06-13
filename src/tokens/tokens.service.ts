@@ -80,6 +80,16 @@ export class TokensService {
       return error.message;
     }
   }
+  
+  async getTokensTrending(): Promise<Token[]> {
+    const tokens = await this.getTokensFromType('all-56')
+    tokens.sort((a,b) => {
+      if (a.percentChange > b.percentChange) return -1;
+      if (a.percentChange < b.percentChange) return 1;
+      return 0;
+    })
+    return tokens.slice(0,12);
+  }
 
   /* 
     MAIN FUNCTION TO PROCESS TOKEN DATA

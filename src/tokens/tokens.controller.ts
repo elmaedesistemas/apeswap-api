@@ -27,10 +27,20 @@ export class TokensController {
     this.logger.log('Called GET /tokens');
     return await this.tokensService.getAllTokens();
   }
+  
+  @Get('trending')
+  async getTokensTrending(): Promise<Token[]> {
+    this.logger.log('Called GET /tokens/trending');
+    return this.tokensService.getTokensTrending();
+  }
 
   @Get(':type')
   async getTokensPerType(@Param('type') type: string): Promise<Token[]> {
     this.logger.log('Called GET /tokens/:type');
     return this.tokensService.getTokensFromType(type);
   }
+  
+  
+  
+  
 }
