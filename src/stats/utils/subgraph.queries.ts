@@ -55,6 +55,7 @@ export function topTokensQuery(block: string) {
       tokenDayData(orderBy: date orderDirection: desc, first: 1) {
         id
         priceUSD
+        totalLiquidityUSD
       }
     }
   }`;

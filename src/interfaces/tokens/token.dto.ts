@@ -4,6 +4,8 @@ export class Token {
   percentChange: number;
   contractAddress: string;
   logoUrl: string;
+  list?: boolean;
+  liquidity?: number;
 }
 
 export class StrapiTokensObject {
