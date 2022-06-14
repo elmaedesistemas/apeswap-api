@@ -39,8 +39,4 @@ export class TokensController {
     this.logger.log('Called GET /tokens/:type');
     return this.tokensService.getTokensFromType(type);
   }
-  
-  
-  
-  
 }
