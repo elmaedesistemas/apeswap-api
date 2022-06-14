@@ -287,7 +287,7 @@ export class StatsService {
           apr,
           stakeToken: { name, address: stakedTokenAddress },
           rewardToken: { name: rewardTokenSymbol, address: rewardTokenAddress },
-          link: 'https://apeswap.finance/pools',
+          link: `https://apeswap.finance/pools?id=${id}`,
         });
       });
 
