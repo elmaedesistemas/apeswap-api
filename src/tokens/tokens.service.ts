@@ -6,6 +6,7 @@ import { ChainConfigService } from 'src/config/chain.configuration.service';
 import { TokenList, TokenListDocument } from './schema/tokenList.schema';
 import { getWeb3 } from 'src/utils/lib/web3';
 import { StrapiTokensObject, Token } from 'src/interfaces/tokens/token.dto';
+import { getHiddenListToken } from 'src/utils/helpers';
 
 @Injectable()
 export class TokensService {
@@ -83,12 +84,14 @@ export class TokensService {
   
   async getTokensTrending(): Promise<Token[]> {
     const tokens = await this.getTokensFromType('all-56')
-    tokens.sort((a,b) => {
+    const hiddenTokens = getHiddenListToken();
+    const filter = tokens.filter( token => !hiddenTokens.includes(token.contractAddress.toLowerCase()))
+    filter.sort((a,b) => {
       if (a.percentChange > b.percentChange) return -1;
       if (a.percentChange < b.percentChange) return 1;
       return 0;
     })
-    return tokens.slice(0,12);
+    return filter.slice(0,12);
   }
 
   /* 
