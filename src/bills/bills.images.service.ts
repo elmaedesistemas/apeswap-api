@@ -109,6 +109,8 @@ export class BillsImagesService {
       '#695B5B',
     );
 
+    const margin = (billMetadata.data.payoutTokenData.symbol.length - 6) * 16;
+
     const maturation = await this.textToCanvasImage(
       moment(billMetadata.data.expires * 1000)
         .format('Do of MMM, YYYY')
@@ -147,13 +149,13 @@ export class BillsImagesService {
         {
           canvasImage: amount,
           layer: 1,
-          x: 1454,
+          x: 1454 - margin,
           y: 880,
         },
         {
           canvasImage: maturation,
           layer: 1,
-          x: 1469,
+          x: 1494,
           y: 918,
         },
       ],
