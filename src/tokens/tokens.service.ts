@@ -7,13 +7,13 @@ import { TokenList, TokenListDocument } from './schema/tokenList.schema';
 import { getWeb3 } from 'src/utils/lib/web3';
 import { StrapiTokensObject, Token } from 'src/interfaces/tokens/token.dto';
 import { getHiddenListToken } from 'src/utils/helpers';
+import sortBy from "lodash.sortby";
 
 @Injectable()
 export class TokensService {
   private readonly logger = new Logger(TokensService.name);
-  private readonly TOKEN_LIST_URL = this.configService.getData<string>(
-    'tokenListUrl',
-  );
+  private readonly TOKEN_LIST_URL =
+    this.configService.getData<string>('tokenListUrl');
   private readonly POLYGONSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY;
 
   constructor(
@@ -81,17 +81,21 @@ export class TokensService {
       return error.message;
     }
   }
-  
+
   async getTokensTrending(): Promise<Token[]> {
-    const tokens = await this.getTokensFromType('all-56')
+    const tokens = await this.getTokensFromType('all-56');
     const hiddenTokens = getHiddenListToken();
-    const filter = tokens.filter( token => !hiddenTokens.includes(token.contractAddress.toLowerCase()))
-    filter.sort((a,b) => {
-      if (a.percentChange > b.percentChange) return -1;
-      if (a.percentChange < b.percentChange) return 1;
-      return 0;
-    })
-    return filter.slice(0,12);
+    const filter = tokens.filter(
+      (token) => !hiddenTokens.includes(token.contractAddress.toLowerCase()) && token.list,
+    );
+    sortBy(filter, ['liquidity', 'percentChange']);
+    const last = filter.slice(0, 12)
+    last.sort((a, b) => {
+        if (a.percentChange > b.percentChange) return -1;
+        if (a.percentChange < b.percentChange) return 1;
+        return 0;
+    });
+    return last;
   }
 
   /* 
@@ -101,12 +105,10 @@ export class TokensService {
   async processTokensFromSubgraphData(
     chainId: number,
     tokenListConfig: StrapiTokensObject[],
-  ): Promise<TokenList[]> {
+  ): Promise<Token[]> {
     // 1. Get raw token data from subgraph, both now & 24 hours ago
-    const {
-      currentTokenData,
-      previousTokenData,
-    } = await this.getRawTokenDataFromSubgraph(chainId);
+    const { currentTokenData, previousTokenData } =
+      await this.getRawTokenDataFromSubgraph(chainId);
 
     // 2. Filter raw token data into data for the database
     const filteredTokenData = await this.prepDataForDatabase(
@@ -114,10 +116,21 @@ export class TokensService {
       previousTokenData,
     );
 
-    const tokenStorageResponse = await this.createTokenList({
-      title: `all-${chainId}`,
+    const type = `all-${chainId}`;
+
+    await this.tokenListModel.updateMany(
+      { title: type },
+      { $set: { 'tokens.$[].list': false } },
+      { multi: true },
+    );
+    await this.createTokenList({
+      title: type,
       tokens: filteredTokenData,
     });
+
+    const tokenStorageResponse: TokenList = await await this.findTokenList(
+      type,
+    );
 
     // 4. Iterate through the token lists on strapi to map to subgraph data & store findings in the database
     tokenListConfig.forEach(async (tokenList) => {
@@ -143,7 +156,7 @@ export class TokensService {
     this.logger.log(
       `Refresh for chain ${chainId} complete. Data stored in database`,
     );
-    return tokenStorageResponse;
+    return tokenStorageResponse.tokens;
   }
 
   /*
@@ -198,7 +211,6 @@ export class TokensService {
     const {
       data: { tokens },
     } = await this.httpService.get(this.TOKEN_LIST_URL).toPromise();
-
     // Loop through current tokens to find and calculate matching tokens from previous datadate
     for (let i = 0; i < currentTokenData.length; i++) {
       const { id, symbol, tokenDayData } = currentTokenData[i];
@@ -214,11 +226,11 @@ export class TokensService {
       // Get price & % change
       const currentPrice = parseFloat(tokenDayData[0].priceUSD);
       const previousPrice = parseFloat(previousToken.tokenDayData[0].priceUSD);
+      const liquidity = parseFloat(tokenDayData[0].totalLiquidityUSD);
       const percentageChange = (currentPrice - previousPrice) / previousPrice;
 
       // Get logo URL
       const logoUrl = await this.getTokenLogoUrl(id, tokens);
-
       // Push token info properly filtered to the array
       preppedTokens.push({
         tokenTicker: symbol,
@@ -226,6 +238,8 @@ export class TokensService {
         percentChange: percentageChange,
         contractAddress: id,
         logoUrl,
+        list: logoUrl !== null && logoUrl !== undefined,
+        liquidity
       });
     }
 
